@@ -5,13 +5,10 @@
 
 # Files:
 
-pilotnet.py - for using nvidia model for inference. Model need to downloaded separately.
-
-sim_control.py - for manual driving.
-
-training_policy.py - training with reinforcement learning.
-
-rosbag_to_vista.py - converting rosbag to vista format. At this point is messy.
+- pilotnet.py - for using nvidia model for inference. Model need to downloaded separately.
+- sim_control.py - for manual driving.
+- training_policy.py - training with reinforcement learning.
+- rosbag_to_vista.py - converting rosbag to vista format. At this point is messy.
 
 # Installation:
 

@@ -1,27 +1,54 @@
-import bagpy
+import os
+import argparse
+
 from bagpy import bagreader
 import pandas as pd
-import seaborn as sea
-import matplotlib.pyplot as plt
 import numpy as np
 
-import bagpy
-from bagpy import bagreader
-import pandas
-import seaborn as sea
-import matplotlib.pyplot as plt
-import numpy as np
-import rosbag
-import cv2
-import rospy 
 
-import shutil, os, subprocess, cv2
-import mitdeeplearning as mdl
+if __name__ == '__main__':
 
-root_path = '/gpfs/space/projects/Bolt/bagfiles/'
-big_bag = root_path + '2022-06-29-10-46-40_e2e_elva__forward_steering2.bag'
-small_bag = root_path + '2022-06-29-13-39-57_e2e_elva__backward_steering1.bag'
-b = bagreader(big_bag) 
+    parser = argparse.ArgumentParser(description='Convert a rosbag to a vista file')
+    parser.add_argument('--root', default='/gpfs/space/projects/Bolt/bagfiles/', help='Path to the bags directory')
+    parser.add_argument('--bag', required=True, help='Name of the bag file') # '2022-06-29-10-46-40_e2e_elva__forward_steering2.bag'
+    args = parser.parse_args()
+
+    root_path = args.root_path
+    path_to_bag = os.path.join(args.root, args.bag) 
+    b = bagreader(path_to_bag)
+
+    image_msgs = b.message_by_topic('/interfacea/link2/image/compressed')
+    df_laser = pd.read_csv(image_msgs)
+
+    df = pd.DataFrame({'ros_time': df_laser['Time']})
+    df.index.name = '#frame_num'
+    df.to_csv('camera_front.csv')
+
+    curvature_msgs = b.message_by_topic('/ssc/curvature_feedback')
+    df_curvature = pd.read_csv(curvature_msgs)
+
+    speed_msgs = b.message_by_topic('/current_velocity')
+    df_speed = pd.read_csv(speed_msgs)
+
+    df2 = pd.DataFrame({'time': df_speed['Time'], 'speed': df_speed['twist.linear.x'] })
+    df2.set_index('time')
+    df2.to_csv('speed.csv', index=False)
+
+    # assume that the frequency is similar for both topics
+    print(f'Curvature messages: {len(df_curvature)}. Frequency: {1/df_curvature["Time"].diff().mean()}')
+    print(f'Speed messages: {len(df_speed)}. Frequency: {1/df_speed["Time"].diff().mean()}')
+
+    min_len = min( len(df_curvature), len(df_speed) )
+    curvs = df_curvature[:min_len]
+    spdss = df_speed[:min_len]
+    yaw_rate = curvs['curvature'] * np.maximum(spdss['twist.linear.x'], 1e-10)
+
+    zeros = [0]*len(spdss['Time'])
+    imu_df = pd.DataFrame( {'time': spdss['Time'], 'ax': zeros, 'ay': zeros, 'az': zeros, 
+                                                   'rx': zeros, 'ry': zeros, 'rz': yaw_rate, 
+                                                   'qx': zeros, 'qy': zeros, 'qz': zeros, 'qw': zeros})
+    imu_df.set_index('time')
+    imu_df.to_csv('imu.csv', index=False)
 
 # for topic in b.topic_table['Topics']:
 #     print( topic )
@@ -90,26 +117,26 @@ b = bagreader(big_bag)
 
 ### ===================================================
 
-LASER_MSG = b.message_by_topic('/ssc/curvature_feedback')
-pd.set_option('display.max_columns', None)
-df_curvature = pd.read_csv(LASER_MSG)
+# LASER_MSG = b.message_by_topic('/ssc/curvature_feedback')
+# pd.set_option('display.max_columns', None)
+# df_curvature = pd.read_csv(LASER_MSG)
 
 
-LASER_MSG = b.message_by_topic('/current_velocity')
-pd.set_option('display.max_columns', None)
-df_speed = pd.read_csv(LASER_MSG)
+# LASER_MSG = b.message_by_topic('/current_velocity')
+# pd.set_option('display.max_columns', None)
+# df_speed = pd.read_csv(LASER_MSG)
 
-df2 = pd.DataFrame({'time': df_speed['Time'], 'speed': df_speed['twist.linear.x'] })
-df2.set_index('time')
-df2.to_csv('speed.csv', index=False)
+# df2 = pd.DataFrame({'time': df_speed['Time'], 'speed': df_speed['twist.linear.x'] })
+# df2.set_index('time')
+# df2.to_csv('speed.csv', index=False)
 
-min_len = min( len(df_curvature), len(df_speed) )
+# min_len = min( len(df_curvature), len(df_speed) )
 
-curvs = df_curvature[:min_len]
-spdss = df_speed[:min_len]
+# curvs = df_curvature[:min_len]
+# spdss = df_speed[:min_len]
 
 
-yaw_rate = curvs['curvature'] * np.maximum(spdss['twist.linear.x'], 1e-10)
+# yaw_rate = curvs['curvature'] * np.maximum(spdss['twist.linear.x'], 1e-10)
 
 # indxs = range( len(smooth_yawrate) )
 
@@ -120,12 +147,12 @@ yaw_rate = curvs['curvature'] * np.maximum(spdss['twist.linear.x'], 1e-10)
 # plt.savefig('yaw_rate.png')
 
 
-zeros = [0]*len(spdss['Time'])
-#print( f'zeros={len(zeros)} yaw={len(smooth_yawrate)}' )
-df3 = pd.DataFrame( {'time': spdss['Time'], 'ax': zeros, 'ay': zeros, 'az': zeros, 'rx': zeros, 'ry': zeros, 'rz': yaw_rate, 'qx': zeros, 'qy': zeros, 'qz': zeros, 'qw': zeros})
+# zeros = [0]*len(spdss['Time'])
+# #print( f'zeros={len(zeros)} yaw={len(smooth_yawrate)}' )
+# df3 = pd.DataFrame( {'time': spdss['Time'], 'ax': zeros, 'ay': zeros, 'az': zeros, 'rx': zeros, 'ry': zeros, 'rz': yaw_rate, 'qx': zeros, 'qy': zeros, 'qz': zeros, 'qw': zeros})
 
-df3.set_index('time')
-df3.to_csv('imu.csv', index=False)
+# df3.set_index('time')
+# df3.to_csv('imu.csv', index=False)
 
 
 # LASER_MSG = b.message_by_topic('/pacmod/parsed_tx/yaw_rate_rpt') #/novatel/oem7/corrimu
