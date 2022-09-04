@@ -76,14 +76,15 @@ def train_step(model, loss_function, optimizer, observations, actions, discounte
 
 
 
-trace_root = "./vista_traces"
+trace_root = "../traces/" #"./vista_traces"
 trace_path = [
     #"e2e_rec_vahi/",
     #"e2e_rec_link3/"
     #"custom_trace/",
     #"custom_trace2/",
     #"custom_trace_reverse/",
-    "20210726-154641_lexus_devens_center", 
+    "data"
+    #"20210726-154641_lexus_devens_center", 
     #"20210726-155941_lexus_devens_center_reverse", 
     #"20210726-184624_lexus_devens_center", 
     #"20210726-184956_lexus_devens_center_reverse", 
@@ -330,8 +331,8 @@ for i_episode in range(2):
 
         #print( f'curvature_action={curvature_action}' )
 #curvature_action
-        #vista_step()
-        vista_step( curvature_action )
+        vista_step()
+        #vista_step( curvature_action )
         observation = grab_and_preprocess_obs(car)
         vis_img = display.render()
         stream.write(vis_img[:, :, ::-1], index=i_step)

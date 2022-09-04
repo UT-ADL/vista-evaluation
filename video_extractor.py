@@ -9,8 +9,11 @@ import rosbag
 import cv2
 import rospy 
 
-root_path = '/data/Bolt/bagfiles/'
-big_bag = root_path + '2021-10-20-11-50-26_e2e_rec_vahi_06_spring2.bag' # '2021-11-17-12-29-22_e2e_rec_elva_camera.bag'
+import json
+
+config = open('rtv_config.json')
+
+data = json.load(config)
 
 import shutil, os, subprocess, cv2
 import mitdeeplearning as mdl
@@ -33,19 +36,15 @@ stream = VideoStream()
 
 i_step = 0
 
-bag = rosbag.Bag(big_bag, 'r')
-msgs = bag.read_messages(topics=['/interfacea/link2/image/compressed'])
+bag = rosbag.Bag(data['rosbag'], 'r')
+msgs = bag.read_messages(topics=[data['camera']])
 
 for m in msgs:
     msg = m.message
 
-    fl = open( 'tmp.jpeg', 'wb' )
-    fl.write( bytearray(msg.data) )
-    fl.close()
-
-    vis_img = cv2.imread( 'tmp.jpeg' )
+    vis_img = cv2.imdecode( np.asarray(bytearray(msg.data)), cv2.IMREAD_ANYCOLOR )
 
     stream.write(vis_img, index=i_step)
     i_step += 1
 
-stream.save("from_rosbag_vahi_link3.avi")
+stream.save(data['rosbag'] + ".avi")
