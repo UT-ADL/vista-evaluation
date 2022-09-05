@@ -3,8 +3,11 @@
  <SENSORS>
    <CAMERA Name="camera_front" Type="gmsl">
         <PROPERTY Name="Model" Value="pinhole"/>
-        <!-- We don't know relative to what quaternions should be computed, that's I created
-        issue in vista repo https://github.com/vista-simulator/vista/issues/12 -->
+        <!-- We don't know relative to what quaternions should be computed, that's why I created
+        issue in vista repo https://github.com/vista-simulator/vista/issues/12. If I'm trying to
+        use values from https://gitlab.cs.ut.ee/autonomous-driving-lab/autoware.ai/local/vehicle_platform/-/blob/ut/master/config/platform.urdf#L91
+        then transformations are incorrect.
+        -->
         <PROPERTY Name="Quaternion" Value="0, 0, 0, 1"/>
         <!-- Represent camera position -->
         <PROPERTY Name="Position" Value="0, 1.76, 0"/>
