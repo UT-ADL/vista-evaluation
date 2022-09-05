@@ -1,5 +1,6 @@
 import shutil, os, subprocess
 import time
+import socket
 
 import rosbag
 import cv2
@@ -7,8 +8,17 @@ import numpy as np
 
 CAMERA_TOPIC = '/interfacea/link2/image/compressed'
 
+NVIDIA_ACCEL = True if socket.gethostname() == 'neuron' else False
 
 class VideoStream():
+    '''Class to write images to a video stream. Uses GPU if running on neuron (ffmpeg is not built with CUDA on HPC).
+
+    Some useful links:
+    - choosing best options for h264_nvenc: 
+        https://superuser.com/questions/1296374/best-settings-for-ffmpeg-with-nvenc
+    - h264_nvenc encoding options (note the lossless compression "-preset 10"): 
+        https://gist.github.com/nico-lab/e1ba48c33bf2c7e1d9ffdd9c1b8d0493
+    '''
     def __init__(self):
         self.tmp = "./tmp"
         if os.path.exists(self.tmp) and os.path.isdir(self.tmp):
@@ -18,6 +28,10 @@ class VideoStream():
         cv2.imwrite(os.path.join(self.tmp, f"{index:04}.png"), image)
     def save(self, fname):
         encoding = '-c:v mpeg4 -q:v 10'
+        if NVIDIA_ACCEL:
+            # -preset 10 is lossless compression
+            # -cq 0 is best quality given compression
+            encoding = '-c:v h264_nvenc -preset hq -profile:v high -rc-lookahead 8 -bf 2 -rc vbr -cq 30 -b:v 0 -maxrate 120M -bufsize 240M'
         cmd = f"ffmpeg -f image2 -framerate 30 -i {self.tmp}/%04d.png {encoding} -y {fname}"
         subprocess.call(cmd, shell=True)
 
