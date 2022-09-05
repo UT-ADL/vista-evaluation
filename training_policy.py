@@ -343,6 +343,12 @@ for i_episode in range(2):
         # add to memory
         memory.add_to_memory(observation, curvature_action, reward)
         curvature_actions.append( curvature_action )
+
+        print( f'total_reward={total_reward}' )
+        
+        if total_reward >= 1200:
+            break
+
         # is the episode over? did you crash or do so well that you're done?
         if reward == 0.0:
             # determine total reward and keep a record of this
