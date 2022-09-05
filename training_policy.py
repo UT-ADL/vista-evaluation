@@ -281,21 +281,7 @@ memory = Memory()
 
 ## Evaluation block!##
 
-import shutil, os, subprocess, cv2
-
-# Create a simple helper class that will assist us in storing videos of the render
-class VideoStream():
-    def __init__(self):
-        self.tmp = "./tmp"
-        if os.path.exists(self.tmp) and os.path.isdir(self.tmp):
-            shutil.rmtree(self.tmp)
-        os.mkdir(self.tmp)
-    def write(self, image, index):
-        cv2.imwrite(os.path.join(self.tmp, f"{index:04}.png"), image)
-    def save(self, fname):
-        cmd = f"/usr/bin/ffmpeg -f image2 -i {self.tmp}/%04d.png -crf 0 -y {fname}"
-        subprocess.call(cmd, shell=True)
-        
+from video_stream_rec import VideoStream
 
 stream = VideoStream()
 i_step = 0
@@ -315,7 +301,9 @@ max_batch_size = 300
 max_reward = float('-inf') # keep track of the maximum reward acheived during training
 if hasattr(tqdm, '_instances'): tqdm._instances.clear() # clear if it exists
 
-for i_episode in range(2):
+number_of_episodes = 500
+
+for i_episode in range(number_of_episodes):
 
     plotter.plot(smoothed_reward.get())
     # Restart the environment
@@ -329,14 +317,12 @@ for i_episode in range(2):
         curvature_dist = run_driving_model(observation)
         curvature_action = curvature_dist.sample()[0,0]
 
-        #print( f'curvature_action={curvature_action}' )
-#curvature_action
-        vista_step()
-        #vista_step( curvature_action )
+        vista_step( curvature_action )
         observation = grab_and_preprocess_obs(car)
-        vis_img = display.render()
-        stream.write(vis_img[:, :, ::-1], index=i_step)
-        i_step += 1
+
+        # vis_img = display.render()
+        # stream.write(vis_img[:, :, ::-1], index=i_step)
+        # i_step += 1
 
         reward = 1.0 if not check_crash(car) else 0.0
 
@@ -345,9 +331,7 @@ for i_episode in range(2):
         curvature_actions.append( curvature_action )
 
         print( f'total_reward={total_reward}' )
-        
-        if total_reward >= 1200:
-            break
+
 
         # is the episode over? did you crash or do so well that you're done?
         if reward == 0.0:
@@ -356,8 +340,6 @@ for i_episode in range(2):
 
             print( f'total_reward={total_reward}' )
             smoothed_reward.append(total_reward)
-
-            #print( f'min_act={min(curvature_actions)}, max_act={max(curvature_actions)}' )
 
             # execute training step - remember we don't know anything about how the 
             #   agent is doing until it has crashed! if the training step is too large 
@@ -391,40 +373,39 @@ for i_episode in range(2):
 ### ### ### ### ### ### ### ###
 
 
-# i_step = 0
-# num_episodes = 5
-# num_reset = 5
-# stream = VideoStream()
-# for i_episode in range(num_episodes):
+i_step = 0
+num_episodes = 5
+num_reset = 5
+stream = VideoStream()
+for i_episode in range(num_episodes):
     
-#     # Restart the environment
-#     vista_reset()
-#     observation = grab_and_preprocess_obs(car)
+    # Restart the environment
+    vista_reset()
+    observation = grab_and_preprocess_obs(car)
     
-#     print("rolling out in env")
-#     episode_step = 0
-#     while True:
-#         # using our observation, choose an action and take it in the environment
-#         curvature_dist = run_driving_model(observation)
-#         curvature = curvature_dist.mean()[0,0]
+    print("rolling out in env")
+    episode_step = 0
+    while True:
+        # using our observation, choose an action and take it in the environment
+        curvature_dist = run_driving_model(observation)
+        curvature = curvature_dist.mean()[0,0]
 
-#         print(f'curvature={curvature}')
-#         # Step the simulated car with the same action
-#         vista_step(curvature)
-#         observation = grab_and_preprocess_obs(car)
+        print(f'curvature={curvature}')
+        # Step the simulated car with the same action
+        vista_step(curvature)
+        observation = grab_and_preprocess_obs(car)
 
-#         vis_img = display.render()
-#         stream.write(vis_img[:, :, ::-1], index=i_step)
-#         i_step += 1
-#         episode_step += 1
+        vis_img = display.render()
+        stream.write(vis_img[:, :, ::-1], index=i_step)
+        i_step += 1
+        episode_step += 1
     
-#         if check_crash(car) or episode_step >= 800:
-#             break
-#     break
-#     for _ in range(num_reset):
-#         stream.write(np.zeros_like(vis_img), index=i_step)
-#         i_step += 1
+        if check_crash(car) or episode_step >= 800:
+            break
+    break
+    for _ in range(num_reset):
+        stream.write(np.zeros_like(vis_img), index=i_step)
+        i_step += 1
         
 print("Saving trajectory with trained policy...")
 stream.save("trained_policy.avi")
-#mdl.lab3.play_video("trained_policy.mp4")
