@@ -5,13 +5,17 @@
 
 # Files:
 
-pilotnet.py - for using nvidia model for inference. Model need to downloaded separately.
+**vista_plus_pilotnet.py** - Use Nvidia model to drive in vista simulation. NOTE: Model need to downloaded separately.
 
-sim_control.py - for manual driving.
+**pilotnet.py** - containes implementation of Nvidia PilotNet model
 
-training_policy.py - training with reinforcement learning.
+**memory.py** - vista's implementation for tracking observation and reward.
 
-rosbag_to_vista.py - converting rosbag to vista format. At this point is messy.
+**sim_control.py** - allow manual driving with arrow keys in vista simulator.
+
+**training_policy.py** - this is vista script for learning control policy with reinforcement learning.
+
+**rosbag_to_vista.py** - converts rosbag to vista format. In config file **rtv_config.json** you need to specify topic where corresponding information should be taken. For field *speed* and *curvature* additionally you have to specify column name. The format is following **<topic_name>.<column_name>**.
 
 # Installation:
 
