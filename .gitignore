@@ -2,3 +2,6 @@ models
 tmp
 traces
 out
+__pycache__
+nohup.out
+*.avi
