@@ -13,6 +13,7 @@
 
 * **rosbag_to_vista.py** - converts rosbag to vista format. In config file **rtv_config.json** you need to specify topic where corresponding information should be taken. For fields *speed* and *curvature* additionally you have to specify column name with following format: **<topic_name>.<column_name>**.
 
+------------
 
 * **video_extractor.py** - extracts video from rosbag. Rosbag should be specified via **rtv_config.json**.
 
