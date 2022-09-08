@@ -1,10 +1,13 @@
 import shutil, os, subprocess
 import time
 import socket
+import tempfile
 
 import rosbag
 import cv2
 import numpy as np
+
+import uuid
 
 HOSTNAME = socket.gethostname()
 FFMPEG_BIN = '/usr/local/bin/ffmpeg' if HOSTNAME == 'neuron' else 'ffmpeg'
@@ -21,7 +24,8 @@ class VideoStream:
         https://gist.github.com/nico-lab/e1ba48c33bf2c7e1d9ffdd9c1b8d0493
     '''
     def __init__(self, fps=30):
-        self.tmp = "./tmp"
+        # self.tmp = tempfile.mkdtemp()
+        self.tmp = os.path.join('.', str(uuid.uuid4().hex)[:8])
         self.fps = fps
         if os.path.exists(self.tmp) and os.path.isdir(self.tmp):
             shutil.rmtree(self.tmp)
@@ -36,6 +40,7 @@ class VideoStream:
             encoding = '-c:v h264_nvenc -preset hq -profile:v high -rc-lookahead 8 -bf 2 -rc vbr -cq 30 -b:v 0 -maxrate 120M -bufsize 240M'
         cmd = f"{FFMPEG_BIN} -f image2 -framerate {self.fps} -i {self.tmp}/%04d.png {encoding} -y {fname}"
         subprocess.call(cmd, shell=True)
+        shutil.rmtree(self.tmp)
 
 def compressed_imgmsg_to_cv2(cmprs_img_msg):
     str_msg = cmprs_img_msg.data
