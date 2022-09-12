@@ -1,7 +1,6 @@
 # Data:
 
-
-[data](https://www.dropbox.com/s/62pao4mipyzk3xu/vista_traces.zip?dl=1)
+[vista dataset](https://www.dropbox.com/s/62pao4mipyzk3xu/vista_traces.zip?dl=1)
 
 # Files:
 
@@ -11,7 +10,7 @@
 
 * **training_policy.py** - this is vista script for learning control policy with reinforcement learning.
 
-* **rosbag_to_vista.py** - converts rosbag to vista format. In config file **rtv_config.json** you need to specify topic where corresponding information should be taken. For fields *speed* and *curvature* additionally you have to specify column name with following format: **<topic_name>.<column_name>**.
+* **rosbag_to_vista.py** - converts rosbag to vista format. In config file **rtv_config.json** you need to specify topic where corresponding information should be taken. For fields *speed* and *curvature* additionally you have to specify column name with following format: **<topic_name>.<column_name>**
 
 * **video_extractor.py** - extracts video from rosbag. Rosbag should be specified via **rtv_config.json**.
 

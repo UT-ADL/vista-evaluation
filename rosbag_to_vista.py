@@ -40,17 +40,22 @@ df.index.name = '#frame_num'
 df.to_csv('camera_front.csv')
 
 ## Processing speed information
-spd_name, spd_col = data['speed'].split('.')
+spd_name, spd_col = data['speed'].split('.', 1)
 df_speed = topic_to_dataframe( spd_name )
 df = pd.DataFrame({'time': df_speed['Time'], 'speed': df_speed[spd_col] })
 df.set_index('time')
 df.to_csv('speed.csv', index=False)
 
 ## Processing curvature information
-curv_name, curv_col = data['curvature'].split('.')
-df_curvature = topic_to_dataframe( curv_name )
+if data['curvature']:
+    curv_name, curv_col = data['curvature'].split('.', 1)
+    df_curvature = topic_to_dataframe( curv_name )
 
-yaw_rate = df_curvature[curv_col] * np.maximum(df_speed[spd_col], 1e-10)
+    yaw_rate = df_curvature[curv_col] * np.maximum(df_speed[spd_col], 1e-10)
+else:    
+    yaw_name, yaw_col = data['yaw_rate'].split('.', 1)
+    yawr = topic_to_dataframe( yaw_name )
+    yaw_rate = yawr[yaw_col]
 
 zeros = [0]*len(df_speed['Time'])
 df = pd.DataFrame( {'time': df_speed['Time'], 'ax': zeros, 'ay': zeros, 'az': zeros, 'rx': zeros, 'ry': zeros, 'rz': yaw_rate, 'qx': zeros, 'qy': zeros, 'qz': zeros, 'qw': zeros})

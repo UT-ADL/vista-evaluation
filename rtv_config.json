@@ -1,6 +1,7 @@
 {
-  "speed": "/ssc/velocity_accel_cov.velocity",
+  "speed": "/current_velocity.twist.linear.x",
   "camera": "/interfacea/link2/image/compressed",
-  "curvature": "/ssc/curvature_feedback.curvature",
+  "curvature": "",
+  "yaw_rate": "/current_velocity.twist.angular.z",
   "rosbag": "/data/Bolt/bagfiles/2021-10-20-11-50-26_e2e_rec_vahi_06_spring2.bag"
 }
