@@ -53,7 +53,7 @@ car = world.spawn_agent(
 
 # Create a camera on the car for synthesizing the sensor data that we can use to train with! 
 camera = car.spawn_camera(config={'name': 'camera_front', 
-                                  'size': (1208, 1928),
+                                  'size': (1208, 1920),
                                   })
 
 # Define a rendering display so we can visualize the simulated car camera stream and also 

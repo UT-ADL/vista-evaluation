@@ -10,6 +10,10 @@ import rosbag
 from collections import defaultdict
 from tqdm import tqdm
 
+import torch
+import torchvision.transforms.functional as F
+from torchvision.transforms import InterpolationMode
+
 from video_extractor import VideoStream, compressed_imgmsg_to_cv2
 
 BOLT_DIR = '/data/Bolt' if socket.gethostname() == 'neuron' else '/gpfs/space/projects/Bolt'
@@ -19,9 +23,17 @@ CAMERA_TOPIC_30HZ = '/interfacea/link2/image/compressed'
 SPEED_TOPIC_30HZ = '/ssc/velocity_accel_cov'
 CURVATURE_TOPIC_30HZ = '/ssc/curvature_feedback'
 
+FULL_IMAGE_WIDTH = 1920
+FULL_IMAGE_HEIGHT = 1208
+
+IMAGE_CROP_XMIN = 300
+IMAGE_CROP_XMAX = 1620
+IMAGE_CROP_YMIN = 520
+IMAGE_CROP_YMAX = 864
 
 
-def read_bag(path_to_bag, topics, max_duration=0):
+
+def read_bag(path_to_bag, topics, resize_mode, max_duration=0, downsample_factor=1):
     bag = rosbag.Bag(path_to_bag, 'r')
     msg_count = bag.get_message_count(topics)
     progress = tqdm(total=msg_count)
@@ -48,6 +60,26 @@ def read_bag(path_to_bag, topics, max_duration=0):
         if topic == CAMERA_TOPIC_30HZ:
             camera_dict['time'].append(msg_timestamp)
             vis_img = compressed_imgmsg_to_cv2(msg)
+
+            if resize_mode == 'full_res':
+                # original, in-distribution but slow
+                pass
+
+            elif resize_mode == 'downsample': 
+                # needs intrinsics scaling, and cropping+resizing during inference, had bad performance
+                vis_img = downsample(vis_img, factor=downsample_factor)
+
+            elif resize_mode == 'resize': 
+                # needs intrinsics scaling and cropping during inference
+                vis_img = resize_before_crop(vis_img)
+
+            elif resize_mode == 'resize_and_crop': 
+                # # needs intrinsics scaling and probably distortion params update (not sure to what values) 
+                # # and normalization during inference
+                # vis_img = resize_before_crop(vis_img)
+                # vis_img = crop_after_resize(vis_img)
+                raise NotImplementedError('resize_and_crop not implemented')
+
             video_stream.write(vis_img, index=frame_idx)
             frame_idx += 1
         elif topic == SPEED_TOPIC_30HZ:
@@ -73,6 +105,30 @@ def create_timestamp_index(df, timestamp_col='time', index_col='index'):
 def save_video(stream, output_dir):
     output_path = os.path.join(output_dir, 'camera_front.avi')
     stream.save(output_path)
+
+def downsample(cv_img, factor=1):
+    scaled_size = np.array(cv_img.shape[:2]) // factor
+    img = torch.tensor(cv_img, dtype=torch.uint8).permute(2, 0, 1)
+    img = F.resize(img, tuple(scaled_size), antialias=True, interpolation=InterpolationMode.BILINEAR)
+    return img.permute(1, 2, 0).numpy()
+
+def resize_before_crop(cv_img, antialias=False, scale=0.2):
+    '''Resized such that only cropping is required to get the final size during inference.'''
+    scaled_height = int(FULL_IMAGE_HEIGHT * scale)
+    scaled_width = int(FULL_IMAGE_WIDTH * scale)
+
+    img = torch.tensor(cv_img, dtype=torch.uint8).permute(2, 0, 1)
+    img = F.resize(img, (scaled_height, scaled_width), antialias=antialias, interpolation=InterpolationMode.BILINEAR)
+    return img.permute(1, 2, 0).numpy()
+
+def crop_after_resize(cv_img, scale=0.2):
+    '''Included here only for reference. It is used in evaluation code.'''
+    crop_xmin = int(IMAGE_CROP_XMIN * scale)
+    crop_xmax = int(IMAGE_CROP_XMAX * scale)
+    crop_ymin = int(IMAGE_CROP_YMIN * scale)
+    crop_ymax = int(IMAGE_CROP_YMAX * scale)
+
+    return cv_img[crop_ymin:crop_ymax, crop_xmin:crop_xmax, :]
 
 def save_video_timestamps(camera_dict, output_dir):
     camera_df = pd.DataFrame(data=camera_dict)
@@ -115,17 +171,19 @@ if __name__ == '__main__':
     parser.add_argument('--bag', required=True, help='Name of the bag file') # e.g. '2022-06-29-10-46-40_e2e_elva__forward_steering2.bag'
     parser.add_argument('--output-base', default=os.path.join(BOLT_DIR, 'end-to-end/vista'), help='Path to the output base directory.')
     parser.add_argument('--max-duration', type=float, default=0, help='Maximum duration of the bag file to process (in seconds).')
+    parser.add_argument('--resize-mode', required=True, choices=['full_res', 'downsample', 'resize', 'resize_and_crop'], help='How to resize the images.')
+    parser.add_argument('--downsample-factor', type=int, default=4, help='Downsample factor for the camera images. Strongly recommended to use 2 or 4 to speed up further runs.')
     args = parser.parse_args()
 
     bag_name = os.path.basename(args.bag).split('.')[0]
-    output_dir = os.path.join(args.output_base, bag_name)
+    output_dir = os.path.join(args.output_base, bag_name + '-' + args.resize_mode)
     os.makedirs(output_dir, exist_ok=True)
     path_to_bag = os.path.join(args.root, args.bag) 
 
     topics = [CAMERA_TOPIC_30HZ, SPEED_TOPIC_30HZ, CURVATURE_TOPIC_30HZ]
     
     bag_read_start = time.perf_counter()
-    video_stream, camera_dict, speed_dict, curvature_dict = read_bag(path_to_bag, topics, max_duration=args.max_duration)
+    video_stream, camera_dict, speed_dict, curvature_dict = read_bag(path_to_bag, topics, args.resize_mode, max_duration=args.max_duration, downsample_factor=args.downsample_factor)
     print('Done reading!')
     bag_read_end = time.perf_counter()
 
@@ -134,7 +192,7 @@ if __name__ == '__main__':
     save_video_timestamps(camera_dict, output_dir)
     speed_df = save_speed(speed_dict, output_dir)
     save_yaw_rate(curvature_dict, speed_df, output_dir)
-    create_params_file(output_dir)
+    create_params_file(output_dir, template_file=f'./params-{args.resize_mode}.xml')
     save_end = time.perf_counter()
     print('Done saving!')
 

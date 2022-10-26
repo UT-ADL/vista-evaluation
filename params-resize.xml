@@ -10,14 +10,14 @@
             <!-- could try 0.00 -->
             <PROPERTY Name="Yaw" Value="0.05"/>
             <PROPERTY Name="params" Value=""/>
-            <PROPERTY Name="width" Hint="intrinsic" Value="1928"/>
-            <PROPERTY Name="height" Hint="intrinsic" Value="1208"/>
+            <PROPERTY Name="width" Hint="intrinsic" Value="384"/>
+            <PROPERTY Name="height" Hint="intrinsic" Value="241"/>
             <PROPERTY Name="distortion" Hint="intrinsic" Value="-0.257498, 0.044477, 0.001824, -0.000257, 0.000000"/>
-            <PROPERTY Name="cx" Hint="intrinsic" Value="958.64773"/>
-            <PROPERTY Name="cy" Hint="intrinsic" Value="611.19286"/>
-            <PROPERTY Name="fx" Hint="intrinsic" Value="969.78186"/>
-            <PROPERTY Name="fy" Hint="intrinsic" Value="976.98311"/>
-            <PROPERTY Name="roi" Hint="region_of_interest" Value="520, 300, 864, 1620"/>
+            <PROPERTY Name="cx" Hint="intrinsic" Value="191.72954"/>
+            <PROPERTY Name="cy" Hint="intrinsic" Value="122.238572"/>
+            <PROPERTY Name="fx" Hint="intrinsic" Value="193.956372"/>
+            <PROPERTY Name="fy" Hint="intrinsic" Value="195.396622"/>
+            <PROPERTY Name="roi" Hint="region_of_interest" Value="104, 60, 172, 324"/>
             <PROPERTY Name="roi_angle" Hint="angle of ROI" Value="0"/>
         </CAMERA>
     </SENSORS>
