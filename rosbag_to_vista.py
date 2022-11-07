@@ -10,6 +10,7 @@ import rosbag
 from collections import defaultdict
 from tqdm import tqdm
 
+import cv2
 import torch
 import torchvision.transforms.functional as F
 from torchvision.transforms import InterpolationMode
@@ -120,6 +121,16 @@ def resize_before_crop(cv_img, antialias=False, scale=0.2):
     img = torch.tensor(cv_img, dtype=torch.uint8).permute(2, 0, 1)
     img = F.resize(img, (scaled_height, scaled_width), antialias=antialias, interpolation=InterpolationMode.BILINEAR)
     return img.permute(1, 2, 0).numpy()
+
+def resize_original(cv_img, scale=0.2):
+    '''Original resizing function, same as the one used on the car.
+    Note: models in EBM thesis and paper were trained on a different vertical cropping, but were tested on this cropping.
+    '''
+    height = IMAGE_CROP_YMAX - IMAGE_CROP_YMIN
+    width = IMAGE_CROP_XMAX - IMAGE_CROP_XMIN
+    scaled_height = int(height * scale)
+    scaled_width = int(width * scale)
+    return cv2.resize(cv_img, dsize=(scaled_width, scaled_height), interpolation=cv2.INTER_LINEAR)
 
 def crop_after_resize(cv_img, scale=0.2):
     '''Included here only for reference. It is used in evaluation code.'''
