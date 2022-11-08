@@ -81,7 +81,7 @@ def check_out_of_lane(car):
     return distance_from_center > half_road_width
 
 
-def run_evaluation_episode(model, world, camera, car, antialias, video_dir, save_video=False, resize_mode='full', dynamics_model=None):
+def run_evaluation_episode(trace_name, model, world, camera, car, antialias, video_dir, save_video=False, resize_mode='full', dynamics_model=None):
     if save_video:
         stream = VideoStreamCompressed(video_dir, FPS, suffix='_full')
         stream_cropped = VideoStreamCompressed(video_dir, FPS, suffix='_cropped', no_encoding=True)
@@ -101,7 +101,7 @@ def run_evaluation_episode(model, world, camera, car, antialias, video_dir, save
     segments_lengths = [len(seg) for seg in car.trace.good_timestamps[car.trace._multi_sensor.master_sensor]]
     total_frames = sum(segments_lengths)
 
-    progress = tqdm.tqdm(total=total_frames, desc='Running a trace', unit='frames')
+    progress = tqdm.tqdm(total=total_frames, desc=trace_name, unit='frames')
 
     while True:
 
@@ -268,7 +268,7 @@ if __name__ == '__main__':
         camera = car.spawn_camera(config={'name': 'camera_front', 'size': camera_size, 'depth_mode': DepthModes.MONODEPTH})
         display = vista.Display(world, display_config={'gui_scale': 2, 'vis_full_frame': True })
 
-        crash_times = run_evaluation_episode(model, world, camera, car, antialias=args.antialias, 
+        crash_times = run_evaluation_episode(os.path.basename(trace), model, world, camera, car, antialias=args.antialias, 
                                                            save_video=args.save_video, 
                                                            video_dir=run_trace_dir,
                                                            resize_mode=args.resize_mode,
@@ -287,6 +287,8 @@ if __name__ == '__main__':
         print(f'{trace}: {len(crash_times)}')
         for crash_time in crash_times:
             print(f'  > {crash_time:.0f}s')
+
+    print(f'\nTotal crashes: {sum([len(crash_times) for crash_times in crashes_by_trace.values()])}')
 
     print(f'Time spent: {time.time() - run_start_time:.0f}s ({(time.time() - run_start_time) / 60:.2f}min)')
 
