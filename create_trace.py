@@ -160,7 +160,7 @@ def save_yaw_rate(curvature_dict, speed_df, output_dir):
     imu_df.set_index('time')
     imu_df.to_csv(os.path.join(output_dir, 'imu.csv'), index=False)
 
-def create_params_file(output_dir, template_file='./params.xml'):
+def create_params_file(output_dir, template_file='./calibration/params.xml'):
     with open(template_file, 'r') as f:
         params = f.read()
     with open(os.path.join(output_dir, 'params.xml'), 'w') as f:
@@ -194,7 +194,7 @@ if __name__ == '__main__':
     save_video_timestamps(camera_dict, output_dir)
     speed_df = save_speed(speed_dict, output_dir)
     save_yaw_rate(curvature_dict, speed_df, output_dir)
-    create_params_file(output_dir, template_file=f'./params-{args.resize_mode}.xml')
+    create_params_file(output_dir, template_file=f'./calibration/params-{args.resize_mode}.xml')
     save_end = time.perf_counter()
     print('Done saving!')
 

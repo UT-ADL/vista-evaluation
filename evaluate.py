@@ -30,8 +30,6 @@ from src.car_constants import LEXUS_LENGTH, LEXUS_WIDTH, LEXUS_WHEEL_BASE, LEXUS
 
 
 IS_NEURON = socket.gethostname() == 'neuron'
-WANDB_ENTITY = os.environ.get('WANDB_ENTITY', None)
-WANDB_PROJECT = os.environ.get('WANDB_PROJECT', None)
 BOLT_DIR = '/data/Bolt' if IS_NEURON else '/gpfs/space/projects/Bolt'
 TRACES_ROOT = os.path.join(BOLT_DIR, 'end-to-end', 'vista')
 MAX_OPENGL_RETRIES = int(os.environ.get('MAX_OPENGL_RETRIES', 10))
@@ -181,21 +179,13 @@ if __name__ == '__main__':
     run_start_time = int(time.time())
 
     parser = argparse.ArgumentParser()
-
-    if sys.version_info[1] < 9:
-        parser.add_argument('--antialias', action='store_true', help='Use antialiasing when resizing the image')
-        parser.add_argument('--wandb', action='store_true', help='Use Weights and Biases for logging.')
-        parser.add_argument('--save-video', action='store_true', help='Save video of model run.')
-    else:
-        # this will require supplying either --antialias or --no-antialias
-        parser.add_argument('--antialias', action=argparse.BooleanOptionalAction, required=True, help='Use antialiasing when resizing the image')
-        parser.add_argument('--wandb', action=argparse.BooleanOptionalAction, required=True, help='Use Weights and Biases for logging.')
-        parser.add_argument('--save-video', action=argparse.BooleanOptionalAction, required=True, help='Save video of model run.')
-
+    parser.add_argument('--antialias', action='store_true', help='Use antialiasing when resizing the image')
+    parser.add_argument('--wandb-project', action='store_true', help='Use Weights and Biases for logging.')
+    parser.add_argument('--save-video', action='store_true', help='Save video of model run.')
     parser.add_argument('--model', type=str, required=True, help='Path to ONNX model.')
     parser.add_argument('--resize-mode', default='resize', choices=['full', 'resize'], help='Resize mode of the input images (bags pre-processed for Vista).')
     parser.add_argument('--dynamics-model', default=None, help='Path to vehicle dynamics model (ONNX). IMPORTANT: ensure the model was trained on the same frequency as Vista is set up for. If not provided, the default (perfect) dynamics model will be used.')
-    parser.add_argument('--road-width', type=float, default=2.5, help='Vista road width in meters.')
+    parser.add_argument('--road-width', type=float, default=4, help='Vista road width in meters.')
     parser.add_argument('--comment', type=str, default=None, help='Run description.')
     parser.add_argument('--depth-mode', type=str, default='monodepth', choices=['fixed_plane', 'monodepth'], help='''Depth approximation mode. Monodepth uses a neural network to estimate depth from a single image, 
                                                                                                                      resulting in fewer artifacts in synthesized images. Fixed plane uses a fixed plane at a fixed distance from the camera.''')
@@ -228,7 +218,7 @@ if __name__ == '__main__':
         for trace_path in args.traces:
             trace_paths.append(trace_path)
 
-    if args.wandb:
+    if args.wandb_project is not None:
         config = {
             'model_path': args.model,
             'trace_paths': trace_paths,
@@ -239,7 +229,7 @@ if __name__ == '__main__':
             'road_width': args.road_width,
             'depth_mode': args.depth_mode,
         }
-        wandb.init(project=WANDB_PROJECT, entity=WANDB_ENTITY, config=config, job_type='vista-evaluation', notes=args.comment)
+        wandb.init(project=args.wandb_project, config=config, job_type='vista-evaluation', notes=args.comment)
 
     trace_paths = [os.path.join(TRACES_ROOT, track_path) for track_path in trace_paths]
     total_n_crashes = 0
@@ -292,7 +282,7 @@ if __name__ == '__main__':
 
     print(f'Time spent: {time.time() - run_start_time:.0f}s ({(time.time() - run_start_time) / 60:.2f}min)')
 
-    if args.wandb:
+    if args.wandb_project is not None:
         total_crashes = sum([len(crash_times) for crash_times in crashes_by_trace.values()])
         wandb.log({'crash_count': total_crashes })
         wandb.finish()
