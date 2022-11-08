@@ -175,11 +175,12 @@ if __name__ == '__main__':
     parser.add_argument('--max-duration', type=float, default=0, help='Maximum duration of the bag file to process (in seconds).')
     parser.add_argument('--resize-mode', required=True, choices=['full_res', 'downsample', 'resize', 'resize_and_crop'], help='How to resize the images.')
     parser.add_argument('--downsample-factor', type=int, default=4, help='Downsample factor for the camera images. Strongly recommended to use 2 or 4 to speed up further runs.')
+    parser.add_argument('--force', default=False, help='Override existing vista trace for given bag if the trace already exists.')
     args = parser.parse_args()
 
     bag_name = os.path.basename(args.bag).split('.')[0]
     output_dir = os.path.join(args.output_base, bag_name + '-' + args.resize_mode)
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=args.force)
     path_to_bag = os.path.join(args.root, args.bag) 
 
     topics = [CAMERA_TOPIC_30HZ, SPEED_TOPIC_30HZ, CURVATURE_TOPIC_30HZ]

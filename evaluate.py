@@ -79,7 +79,7 @@ def check_out_of_lane(car):
     return distance_from_center > half_road_width
 
 
-def run_evaluation_episode(trace_name, model, world, camera, car, antialias, video_dir, save_video=False, resize_mode='full', dynamics_model=None):
+def run_evaluation_episode(trace_name, model, world, camera, car, antialias, video_dir, save_video=False, resize_mode='resize', dynamics_model=None):
     if save_video:
         stream = VideoStreamCompressed(video_dir, FPS, suffix='_full')
         stream_cropped = VideoStreamCompressed(video_dir, FPS, suffix='_cropped', no_encoding=True)
@@ -180,7 +180,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--antialias', action='store_true', help='Use antialiasing when resizing the image')
-    parser.add_argument('--wandb-project', action='store_true', help='Use Weights and Biases for logging.')
+    parser.add_argument('--wandb-project', type=str, help='Weights and Biases project for logging.')
     parser.add_argument('--save-video', action='store_true', help='Save video of model run.')
     parser.add_argument('--model', type=str, required=True, help='Path to ONNX model.')
     parser.add_argument('--resize-mode', default='resize', choices=['full', 'resize'], help='Resize mode of the input images (bags pre-processed for Vista).')

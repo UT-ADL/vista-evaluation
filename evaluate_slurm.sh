@@ -17,4 +17,4 @@
 
 # Actual job command(s)
 module load ffmpeg
-srun python -u vista_sim/vista_evaluate.py "$@"
+srun python -u evaluate.py "$@"
