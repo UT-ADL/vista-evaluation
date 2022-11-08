@@ -15,7 +15,8 @@ import torch
 import torchvision.transforms.functional as F
 from torchvision.transforms import InterpolationMode
 
-from video_extractor import VideoStream, compressed_imgmsg_to_cv2
+from src.video import VideoStream, compressed_imgmsg_to_cv2
+from src.car_constants import FULL_IMAGE_HEIGHT, FULL_IMAGE_WIDTH, IMAGE_CROP_XMAX, IMAGE_CROP_XMIN, IMAGE_CROP_YMAX, IMAGE_CROP_YMIN
 
 BOLT_DIR = '/data/Bolt' if socket.gethostname() == 'neuron' else '/gpfs/space/projects/Bolt'
 BAGS_DIR = os.path.join(BOLT_DIR, 'bagfiles')
@@ -23,16 +24,6 @@ BAGS_DIR = os.path.join(BOLT_DIR, 'bagfiles')
 CAMERA_TOPIC_30HZ = '/interfacea/link2/image/compressed'
 SPEED_TOPIC_30HZ = '/ssc/velocity_accel_cov'
 CURVATURE_TOPIC_30HZ = '/ssc/curvature_feedback'
-
-FULL_IMAGE_WIDTH = 1920
-FULL_IMAGE_HEIGHT = 1208
-
-IMAGE_CROP_XMIN = 300
-IMAGE_CROP_XMAX = 1620
-IMAGE_CROP_YMIN = 520
-IMAGE_CROP_YMAX = 864
-
-
 
 def read_bag(path_to_bag, topics, resize_mode, max_duration=0, downsample_factor=1):
     bag = rosbag.Bag(path_to_bag, 'r')
