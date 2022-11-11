@@ -1,6 +1,6 @@
 import os
-import sys
-import socket
+import dotenv
+dotenv.load_dotenv()
 os.environ['PYOPENGL_PLATFORM'] = 'egl'
 os.environ['EGL_DEVICE_ID'] = os.environ.get('CUDA_AVAILABLE_DEVICES', '0')
 
@@ -9,9 +9,6 @@ import time
 from datetime import datetime
 from collections import defaultdict
 import argparse
-import traceback
-import dotenv
-dotenv.load_dotenv()
 
 import wandb
 import numpy as np
@@ -29,8 +26,7 @@ from src.steering_model import OnnxSteeringModel
 from src.car_constants import LEXUS_LENGTH, LEXUS_WIDTH, LEXUS_WHEEL_BASE, LEXUS_STEERING_RATIO
 
 
-PATH_TO_LEARNED_DYNAMICS_MODEL = os.environ.get('PATH_TO_LEARNED_DYNAMICS_MODEL', os.path.join(os.path.dir(__file__), 'models', 'dynamics_model_v6_10hz.onnx'))
-MAX_OPENGL_RETRIES = int(os.environ.get('MAX_OPENGL_RETRIES', 10))
+PATH_TO_LEARNED_DYNAMICS_MODEL = os.environ.get('PATH_TO_LEARNED_DYNAMICS_MODEL', os.path.join(os.path.dirname(__file__), 'models', 'dynamics_model_v6_10hz.onnx'))
 OUTPUT_DIR = 'out'
 
 LOG_FREQUENCY_SEC = 1
@@ -42,16 +38,6 @@ FRAME_RESET_OFFSET = 1
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-def step_sensors_safe(car):
-    successful = False
-    try: 
-        car.step_sensors()
-        successful = True
-    except Exception as err:
-        print(err)
-        traceback.print_exc()
-    return successful
-
 def vista_step(car, curvature=None, speed=None):
     if curvature is None: 
         curvature = car.trace.f_curvature(car.timestamp)
@@ -59,16 +45,7 @@ def vista_step(car, curvature=None, speed=None):
         speed = car.trace.f_speed(car.timestamp)
     
     car.step_dynamics(action=np.array([curvature, speed]), dt=1/FPS)
-
-    n_attempts = 0
-    while not step_sensors_safe(car) and n_attempts < MAX_OPENGL_RETRIES:
-        n_attempts += 1
-        logging.error(f'Waiting 5 sec before another step_sensors() attempt... (tried {n_attempts}/{MAX_OPENGL_RETRIES} times)')
-        time.sleep(5)
-
-    if n_attempts == MAX_OPENGL_RETRIES:
-        logging.error('Giving up after too many OpenGL errors')
-        car.done = True
+    car.step_sensors()
 
 def check_out_of_lane(car):
     distance_from_center = np.abs(car.relative_state.x)
@@ -182,8 +159,8 @@ if __name__ == '__main__':
     parser.add_argument('--save-video', action='store_true', help='Save video of model run.')
     parser.add_argument('--model', type=str, required=True, help='Path to ONNX model.')
     parser.add_argument('--resize-mode', default='resize', choices=['full', 'resize'], help='Resize mode of the input images (bags pre-processed for Vista).')
-    parser.add_argument('--dynamics-model', default='learned', options=['learned', 'exp-mov-avg', 'none'], help='Which vehicle dynamics model to use. Defaults to a learned 10hz GRU model.')
-    parser.add_argument('--road-width', type=float, default=4, help='Vista road width in meters.')
+    parser.add_argument('--dynamics', default='learned', choices=['learned', 'exp-mov-avg', 'none'], help='Which vehicle dynamics model to use. Defaults to a learned 10hz GRU model.')
+    parser.add_argument('--road-width', type=float, default=4.0, help='Vista road width in meters.')
     parser.add_argument('--comment', type=str, default=None, help='Run description.')
     parser.add_argument('--depth-mode', type=str, default='monodepth', choices=['fixed_plane', 'monodepth'], help='''Depth approximation mode. Monodepth uses a neural network to estimate depth from a single image, 
                                                                                                                      resulting in fewer artifacts in synthesized images. Fixed plane uses a fixed plane at a fixed distance from the camera.''')
@@ -198,16 +175,16 @@ if __name__ == '__main__':
 
     model = OnnxSteeringModel(args.model) # aquire GPU early (helpful for distributing runs across GPUs on a single machine)
     dynamics_model = None
-    if args.dynamics_model == 'learned':
+    if args.dynamics == 'learned':
         dynamics_model = OnnxDynamicsModel(PATH_TO_LEARNED_DYNAMICS_MODEL)
-    elif args.dynamics_model == 'exp-mov-avg':
+    elif args.dynamics == 'exp-mov-avg':
         dynamics_model = ExpMovingAverageDynamicsModel()
 
     if args.wandb_project is not None:
         config = {
             'model_path': args.model,
             'trace_paths': args.traces,
-            'dynamics_model': args.dynamics_model,
+            'dynamics_model': args.dynamics,
             'antialias': args.antialias,
             'resize_mode': args.resize_mode,
             'save_video': args.save_video,

@@ -1,21 +1,25 @@
 import shutil, os, subprocess
-import time
 import socket
 
-import rosbag
 import cv2
 import numpy as np
 
 import uuid
 
+import dotenv
+dotenv.load_dotenv()
+
 HOSTNAME = socket.gethostname()
-FFMPEG_BIN = '/usr/local/bin/ffmpeg' if HOSTNAME == 'neuron' else 'ffmpeg'
+FFMPEG_BIN_DEFAULT = '/usr/local/bin/ffmpeg' if HOSTNAME == 'neuron' else 'ffmpeg'
+NVIDIA_ACCEL_DEFAULT = True if HOSTNAME == 'neuron' else False
+FFMPEG_BIN = os.environ.get('FFMPEG_BIN', FFMPEG_BIN_DEFAULT)
+NVIDIA_ACCEL = os.environ.get('FFMPEG_NVIDIA_ACCEL', str(NVIDIA_ACCEL_DEFAULT)).lower() in ['true', '1', 'ok', 'yes']
+
 CAMERA_TOPIC = '/interfacea/link2/image/compressed'
-NVIDIA_ACCEL = True if HOSTNAME == 'neuron' else False
 
 
 class VideoStream:
-    '''Class to write images to a raw video stream.
+    '''Class to write images to a raw video stream, without any compression.
     '''
     def __init__(self, fps=30):
         self.tmp = os.path.join('.', str(uuid.uuid4().hex)[:8])
@@ -36,33 +40,6 @@ def compressed_imgmsg_to_cv2(cmprs_img_msg):
                         dtype=np.uint8, buffer=str_msg)
     im = cv2.imdecode(buf, cv2.IMREAD_UNCHANGED)
     return im
-
-def compressed_imgmsg_to_cv2_old(cmprs_img_msg):
-    fl = open( 'tmp.jpeg', 'wb' )
-    fl.write( bytearray(cmprs_img_msg.data) )
-    fl.close()
-    vis_img = cv2.imread( 'tmp.jpeg' )
-    return vis_img
-
-def bag_to_video(bag_path, output_dir):
-    stream = VideoStream()
-    output_path = os.path.join(output_dir, 'camera_front.avi')
-
-    print('Reading bag file: {}'.format(bag_path))
-    start_time = time.perf_counter()
-    bag = rosbag.Bag(bag_path, 'r')
-    msgs = bag.read_messages(topics=[CAMERA_TOPIC])
-
-    print('Saving video to: {}'.format(output_path))
-    i_step = 0
-    for m in msgs:
-        vis_img = compressed_imgmsg_to_cv2(m.message)
-        stream.write(vis_img, index=i_step)
-        i_step += 1
-    end_time = time.perf_counter()
-
-    stream.save(output_path)
-    print(f"Time to extract & save: {end_time - start_time:.2f}s")
 
 
 class VideoStreamCompressed:
