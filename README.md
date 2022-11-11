@@ -12,7 +12,8 @@ The evaluation is done on a VISTA-simulated 4.3 km section of the WRC Rally Esto
 
 The only inputs available to the model are RGB image frames from the front-facing camera. The model is expected to output a steering angle in radians, where positive angles are left turns. The longitudinal (speed) control is not evaluated and is taken from the ground truth speed at the moment of the frame capture.
 
-![Screenshot from one of the recordings](extra/recording-screenshot.png)
+![Screenshot from one of the recordings](extra/recording_shot.png)
+![Screenshot from a VISTA run](extra/vista_shot.png)
 
 ## Download Traces
 
