@@ -24,14 +24,12 @@ from vista.entities.sensors.camera_utils.ViewSynthesis import DepthModes
 
 from src.preprocessing import grab_and_preprocess_obs, get_camera_size
 from src.video import VideoStreamCompressed
-from src.dynamics_model import OnnxDynamicsModel
+from src.dynamics_model import OnnxDynamicsModel, ExpMovingAverageDynamicsModel
 from src.steering_model import OnnxSteeringModel
 from src.car_constants import LEXUS_LENGTH, LEXUS_WIDTH, LEXUS_WHEEL_BASE, LEXUS_STEERING_RATIO
 
 
-IS_NEURON = socket.gethostname() == 'neuron'
-BOLT_DIR = '/data/Bolt' if IS_NEURON else '/gpfs/space/projects/Bolt'
-TRACES_ROOT = os.path.join(BOLT_DIR, 'end-to-end', 'vista')
+PATH_TO_LEARNED_DYNAMICS_MODEL = os.environ.get('PATH_TO_LEARNED_DYNAMICS_MODEL', os.path.join(os.path.dir(__file__), 'models', 'dynamics_model_v6_10hz.onnx'))
 MAX_OPENGL_RETRIES = int(os.environ.get('MAX_OPENGL_RETRIES', 10))
 OUTPUT_DIR = 'out'
 
@@ -184,12 +182,13 @@ if __name__ == '__main__':
     parser.add_argument('--save-video', action='store_true', help='Save video of model run.')
     parser.add_argument('--model', type=str, required=True, help='Path to ONNX model.')
     parser.add_argument('--resize-mode', default='resize', choices=['full', 'resize'], help='Resize mode of the input images (bags pre-processed for Vista).')
-    parser.add_argument('--dynamics-model', default=None, help='Path to vehicle dynamics model (ONNX). IMPORTANT: ensure the model was trained on the same frequency as Vista is set up for. If not provided, the default (perfect) dynamics model will be used.')
+    parser.add_argument('--dynamics-model', default='learned', options=['learned', 'exp-mov-avg', 'none'], help='Which vehicle dynamics model to use. Defaults to a learned 10hz GRU model.')
     parser.add_argument('--road-width', type=float, default=4, help='Vista road width in meters.')
     parser.add_argument('--comment', type=str, default=None, help='Run description.')
     parser.add_argument('--depth-mode', type=str, default='monodepth', choices=['fixed_plane', 'monodepth'], help='''Depth approximation mode. Monodepth uses a neural network to estimate depth from a single image, 
                                                                                                                      resulting in fewer artifacts in synthesized images. Fixed plane uses a fixed plane at a fixed distance from the camera.''')
-    parser.add_argument('--traces', type=str, nargs='+', default=None, help='Traces to evaluate on. If not provided, a human-driven Elva track from late October 2021 will be used.')
+    parser.add_argument('--traces', type=str, nargs='+', default=None, required=True, help='Traces to evaluate on.')
+    parser.add_argument('--traces-root', type=str, default='./traces', help='Root directory of traces. Defaults to `./traces`.')
     parser.add_argument('--verbose', action='store_true', help='Print debug messages.')
     args = parser.parse_args()
     print(vars(args))
@@ -198,30 +197,16 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
     model = OnnxSteeringModel(args.model) # aquire GPU early (helpful for distributing runs across GPUs on a single machine)
-    dynamics_model = OnnxDynamicsModel(args.dynamics_model) if args.dynamics_model is not None else None
-
-    trace_paths = []
-    if args.traces is None:
-        if args.resize_mode == 'full':
-            trace_paths.extend([
-                '2021-10-26-10-49-06_e2e_rec_ss20_elva_eval_chunk-full_res',
-                '2021-10-26-11-08-59_e2e_rec_ss20_elva_back_eval_chunk-full_res',
-            ])
-        elif args.resize_mode == 'resize':
-            trace_paths.extend([
-                '2021-10-26-10-49-06_e2e_rec_ss20_elva_eval_chunk-resize',
-                '2021-10-26-11-08-59_e2e_rec_ss20_elva_back_eval_chunk-resize',
-            ])
-        else:
-            raise NotImplementedError(f'There is no such resize mode: {args.resize_mode}')
-    else:
-        for trace_path in args.traces:
-            trace_paths.append(trace_path)
+    dynamics_model = None
+    if args.dynamics_model == 'learned':
+        dynamics_model = OnnxDynamicsModel(PATH_TO_LEARNED_DYNAMICS_MODEL)
+    elif args.dynamics_model == 'exp-mov-avg':
+        dynamics_model = ExpMovingAverageDynamicsModel()
 
     if args.wandb_project is not None:
         config = {
             'model_path': args.model,
-            'trace_paths': trace_paths,
+            'trace_paths': args.traces,
             'dynamics_model': args.dynamics_model,
             'antialias': args.antialias,
             'resize_mode': args.resize_mode,
@@ -231,7 +216,7 @@ if __name__ == '__main__':
         }
         wandb.init(project=args.wandb_project, config=config, job_type='vista-evaluation', notes=args.comment)
 
-    trace_paths = [os.path.join(TRACES_ROOT, track_path) for track_path in trace_paths]
+    trace_paths = [os.path.join(args.traces_root, track_path) for track_path in args.traces]
     total_n_crashes = 0
     crashes_by_trace = defaultdict(int)
 

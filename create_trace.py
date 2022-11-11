@@ -18,9 +18,6 @@ from torchvision.transforms import InterpolationMode
 from src.video import VideoStream, compressed_imgmsg_to_cv2
 from src.car_constants import FULL_IMAGE_HEIGHT, FULL_IMAGE_WIDTH, IMAGE_CROP_XMAX, IMAGE_CROP_XMIN, IMAGE_CROP_YMAX, IMAGE_CROP_YMIN
 
-BOLT_DIR = '/data/Bolt' if socket.gethostname() == 'neuron' else '/gpfs/space/projects/Bolt'
-BAGS_DIR = os.path.join(BOLT_DIR, 'bagfiles')
-
 CAMERA_TOPIC_30HZ = '/interfacea/link2/image/compressed'
 SPEED_TOPIC_30HZ = '/ssc/velocity_accel_cov'
 CURVATURE_TOPIC_30HZ = '/ssc/curvature_feedback'
@@ -169,24 +166,22 @@ def create_params_file(output_dir, template_file='./calibration/params.xml'):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert a rosbag to a vista file')
-    parser.add_argument('--root', default=BAGS_DIR, help='Path to the bags directory')
     parser.add_argument('--bag', required=True, help='Name of the bag file') # e.g. '2022-06-29-10-46-40_e2e_elva__forward_steering2.bag'
-    parser.add_argument('--output-base', default=os.path.join(BOLT_DIR, 'end-to-end/vista'), help='Path to the output base directory.')
-    parser.add_argument('--max-duration', type=float, default=0, help='Maximum duration of the bag file to process (in seconds).')
-    parser.add_argument('--resize-mode', required=True, choices=['full_res', 'downsample', 'resize', 'resize_and_crop'], help='How to resize the images.')
     parser.add_argument('--downsample-factor', type=int, default=4, help='Downsample factor for the camera images. Strongly recommended to use 2 or 4 to speed up further runs.')
     parser.add_argument('--force', default=False, help='Override existing vista trace for given bag if the trace already exists.')
+    parser.add_argument('--max-duration', type=float, default=0, help='Maximum duration of the bag file to process (in seconds).')
+    parser.add_argument('--output-root', required=True, help='Path to the output base directory.')
+    parser.add_argument('--resize-mode', required=False, default='resize', choices=['full_res', 'downsample', 'resize', 'resize_and_crop'], help='How to resize the images.')
     args = parser.parse_args()
 
     bag_name = os.path.basename(args.bag).split('.')[0]
-    output_dir = os.path.join(args.output_base, bag_name + '-' + args.resize_mode)
+    output_dir = os.path.join(args.output_root, bag_name + '-' + args.resize_mode)
     os.makedirs(output_dir, exist_ok=args.force)
-    path_to_bag = os.path.join(args.root, args.bag) 
 
     topics = [CAMERA_TOPIC_30HZ, SPEED_TOPIC_30HZ, CURVATURE_TOPIC_30HZ]
     
     bag_read_start = time.perf_counter()
-    video_stream, camera_dict, speed_dict, curvature_dict = read_bag(path_to_bag, topics, args.resize_mode, max_duration=args.max_duration, downsample_factor=args.downsample_factor)
+    video_stream, camera_dict, speed_dict, curvature_dict = read_bag(args.bag, topics, args.resize_mode, max_duration=args.max_duration, downsample_factor=args.downsample_factor)
     print('Done reading!')
     bag_read_end = time.perf_counter()
 

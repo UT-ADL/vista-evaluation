@@ -56,7 +56,7 @@ class OnnxDynamicsModel:
         self.steps_done = 0
     
 
-class NaiveSmoothingModel:
+class ExpMovingAverageDynamicsModel:
     def __init__(self, alpha=0.075):
         self.alpha = alpha
         self.last_effective_steering = None
