@@ -2,7 +2,7 @@
 
 This is a road-following benchmark for camera-based end-to-end steering models that uses the [VISTA Driving Simulator](https://github.com/vista-simulator/vista). 
 
-VISTA takes a recording of a real-world drive and allows replaying it interactively with deviations from the original trajectory by reprojecting the view-point as desired. Thus, a simulator can be used for on-policy, closed-loop evaluation, allowing fast and reproducible model evaluation while staying visually in-distribution with real-world data.
+VISTA takes a recording of a real-world drive and allows replaying it interactively with deviations from the original trajectory by reprojecting the view-point as desired. Thus, a simulator can be used for on-policy, closed-loop evaluation, allowing fast and reproducible model evaluation (as with evaluation in Carla-like simulators) while staying visually in-distribution with real-world data (as with real-world evaluations).
 
 The [Rally Estonia End-to-End Driving](https://github.com/UT-ADL/e2e-rally-estonia) provides a dataset and codebase for training baseline models.
 
@@ -11,6 +11,8 @@ The [Rally Estonia End-to-End Driving](https://github.com/UT-ADL/e2e-rally-eston
 The evaluation is done on a VISTA-simulated 4.3 km section of the WRC Rally Estonia 2022 [SS10+14 Elva](https://www.rally-maps.com/Rally-Estonia-2022/Elva) track, driven in both ways (8.6 km in total). The track was chosen to be challenging for humans, and includes elevations, curves and narrow rural roads. The speed in the original recording is around 35-45 km/h, chosen to be comfortable by the driver.
 
 The only inputs available to the model are RGB image frames from the front-facing camera. The model is expected to output a steering angle in radians, where positive angles are left turns. The longitudinal (speed) control is not evaluated and is taken from the ground truth speed at the moment of the frame capture.
+
+The key **evaluation metric** is the number of crashes, where a crash is defined as diverging from the human-driven center-line by more than 2 meters. When a crash occurs, the car is restarted two seconds further than the place of the crash.
 
 ![Screenshot from one of the recordings](extra/recording_shot.png)
 ![Screenshot from a VISTA run](extra/vista_shot.png)
