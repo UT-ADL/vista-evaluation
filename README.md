@@ -2,7 +2,7 @@
 
 This is a road-following benchmark for camera-based end-to-end steering models that uses the [VISTA Driving Simulator](https://github.com/vista-simulator/vista). 
 
-VISTA takes a recording of a real-world drive and allows replaying it interactively with deviations from the original trajectory by reprojecting the view-point as desired. Thus, a simulator can be used for on-policy, closed-loop evaluation, allowing fast and reproducible model evaluation (as with evaluation in Carla-like simulators) while staying visually in-distribution with real-world data (as with real-world evaluations).
+VISTA takes a recording of a real-world drive and allows replaying it interactively with deviations from the original trajectory by reprojecting the view-point as desired. Thus, a simulator can be used for on-policy, closed-loop evaluation, allowing fast and reproducible model evaluation (as in Carla-like simulators) while staying visually in-distribution with real-world data.
 
 The [Rally Estonia End-to-End Driving](https://github.com/UT-ADL/e2e-rally-estonia) provides a dataset and codebase for training baseline models.
 
@@ -21,7 +21,7 @@ The key **evaluation metric** is the number of crashes, where a crash is defined
 
 The VISTA simulator is run on *traces*, i.e. drive recordings in a VISTA-specific format. 
 
-Download the official benchmark [traces](https://owncloud.ut.ee/owncloud/s/MpcyyzSC7qdgc2d) from the University of Tartu ownCloud. The archive contains two directories with traces, representing two drives through the track in different directions: 
+Download the official benchmark [traces](https://owncloud.ut.ee/owncloud/s/MpcyyzSC7qdgc2d) from the University of Tartu ownCloud. The archive contains two traces-directories, representing two drives through the track in different directions: 
 - `2021-10-26-10-49-06_e2e_rec_ss20_elva_eval_chunk` (4.3km section of SS10+14 Elva)
 - `2021-10-26-11-08-59_e2e_rec_ss20_elva_back_eval_chunk` (4.3km section of SS10+14 Elva, reversed)
 

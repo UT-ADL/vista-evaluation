@@ -20,6 +20,7 @@ from vista.entities.agents.Dynamics import steering2curvature
 from vista.entities.sensors.camera_utils.ViewSynthesis import DepthModes
 
 from src.preprocessing import grab_and_preprocess_obs, get_camera_size
+from src.metrics import calculate_whiteness
 from src.video import VideoStreamCompressed
 from src.dynamics_model import OnnxDynamicsModel, ExpMovingAverageDynamicsModel
 from src.steering_model import OnnxSteeringModel
@@ -74,6 +75,10 @@ def run_evaluation_episode(trace_name, model, world, camera, car, antialias, vid
     segments_lengths = [len(seg) for seg in car.trace.good_timestamps[car.trace._multi_sensor.master_sensor]]
     total_frames = sum(segments_lengths)
 
+    timestamps = []
+    cmd_steering_angle_history = []
+    eff_steering_angle_history = []
+
     progress = tqdm.tqdm(total=total_frames, desc=trace_name, unit='frames')
 
     while True:
@@ -83,6 +88,11 @@ def run_evaluation_episode(trace_name, model, world, camera, car, antialias, vid
         model_input = np.expand_dims(model_input, axis=0)
         predictions = model.predict(model_input)
         steering_angle = predictions.item()
+
+        timestamps.append(car.timestamp)
+        cmd_steering_angle_history.append(math.degrees(steering_angle))
+        eff_steering_angle_history.append(math.degrees(car._ego_dynamics.steering))
+
         if dynamics_model is not None:
             steering_angle = dynamics_model.predict(steering_angle)
         inference_time = time.perf_counter() - inference_start
@@ -103,7 +113,10 @@ def run_evaluation_episode(trace_name, model, world, camera, car, antialias, vid
             stream_cropped.write(observation * 255.)
         vis_time = time.perf_counter() - vis_start
 
-        logging.debug( f'\nStep {i_step} ({car._timestamp - car_timestamp_start:.0f}s, segment: {i_segment}, frame: {last_driven_frame_idx}) env step: {step_time:.2f}s | inference: {inference_time:.4f}s | visualization: {vis_time:.2f}s | crashes: {len(crash_times)}' )
+        cmd_whiteness = calculate_whiteness(cmd_steering_angle_history, timestamps)
+        eff_whiteness = calculate_whiteness(eff_steering_angle_history, timestamps)
+
+        logging.debug( f'\nStep {i_step} ({car._timestamp - car_timestamp_start:.0f}s, segment: {i_segment}, frame: {last_driven_frame_idx}) env step: {step_time:.2f}s | inference: {inference_time:.4f}s | visualization: {vis_time:.2f}s | crashes: {len(crash_times)} | whiteness_cmd: {cmd_whiteness:.2f} | whiteness_eff: {eff_whiteness:.2f}')
 
         if check_out_of_lane(car):
             crash_times.append(car._timestamp - car_timestamp_start)
@@ -140,14 +153,23 @@ def run_evaluation_episode(trace_name, model, world, camera, car, antialias, vid
         inc = last_driven_frame_idx - progress.n
         progress.update(n=inc)
 
+    cmd_whiteness = calculate_whiteness(cmd_steering_angle_history, timestamps)
+    eff_whiteness = calculate_whiteness(eff_steering_angle_history, timestamps)
+
+    run_metrics = {
+        'crash_times': crash_times,
+        'cmd_whiteness': cmd_whiteness,
+        'eff_whiteness': eff_whiteness,
+    }
+
+    logging.debug(f'\nLast trace crashes: {len(crash_times)}')
+
     if save_video:
         logging.debug('Saving trace videos to:', video_dir)
         stream.save(os.path.join(video_dir, 'full.avi'))
         stream_cropped.save(os.path.join(video_dir, 'cropped.avi'))
 
-    logging.debug(f'\nLast trace crashes: {len(crash_times)}')
-
-    return crash_times
+    return run_metrics
 
 if __name__ == '__main__':
 
@@ -195,7 +217,7 @@ if __name__ == '__main__':
 
     trace_paths = [os.path.join(args.traces_root, track_path) for track_path in args.traces]
     total_n_crashes = 0
-    crashes_by_trace = defaultdict(int)
+    metrics_by_trace = defaultdict(lambda: defaultdict(float))
 
     model_name = os.path.basename(args.model).replace('.onnx', '')
     date_time_str = datetime.fromtimestamp(run_start_time).replace(microsecond=0).isoformat()
@@ -220,12 +242,13 @@ if __name__ == '__main__':
         camera = car.spawn_camera(config={'name': 'camera_front', 'size': camera_size, 'depth_mode': DepthModes.MONODEPTH})
         display = vista.Display(world, display_config={'gui_scale': 2, 'vis_full_frame': True })
 
-        crash_times = run_evaluation_episode(os.path.basename(trace), model, world, camera, car, antialias=args.antialias, 
+        metrics = run_evaluation_episode(os.path.basename(trace), model, world, camera, car, antialias=args.antialias, 
                                                            save_video=args.save_video, 
                                                            video_dir=run_trace_dir,
                                                            resize_mode=args.resize_mode,
                                                            dynamics_model=dynamics_model)
-        crashes_by_trace[trace] = crash_times
+        
+        metrics_by_trace[trace] = metrics
 
         # cleanup
         del camera._view_synthesis._renderer
@@ -234,17 +257,24 @@ if __name__ == '__main__':
         del display
         del world
 
-    print(f'\nCrashes by trace:')
-    for trace, crash_times in crashes_by_trace.items():
-        print(f'{trace}: {len(crash_times)}')
+    print(f'\nMetrics by trace:')
+    for trace, metrics in metrics_by_trace.items():
+        crash_times = metrics['crash_times']
+        cmd_whiteness = metrics['cmd_whiteness']
+        eff_whiteness = metrics['eff_whiteness']
+        print(f'{trace}: {len(crash_times)} crashes. whiteness_cmd: {cmd_whiteness:.2f}, whiteness_eff: {eff_whiteness:.2f}')
         for crash_time in crash_times:
             print(f'  > {crash_time:.0f}s')
 
-    print(f'\nTotal crashes: {sum([len(crash_times) for crash_times in crashes_by_trace.values()])}')
+    total_crashes = sum([len(metrics['crash_times']) for metrics in metrics_by_trace.values()])
+    avg_cmd_whiteness = np.mean([metrics['cmd_whiteness'] for metrics in metrics_by_trace.values()])
+    avg_eff_whiteness = np.mean([metrics['eff_whiteness'] for metrics in metrics_by_trace.values()])
 
+    print(f'\nTotal crashes: {total_crashes}')
+    print(f'Average command whiteness: {avg_cmd_whiteness:.2f}')
+    print(f'Average effective whiteness: {avg_eff_whiteness:.2f}')
     print(f'Time spent: {time.time() - run_start_time:.0f}s ({(time.time() - run_start_time) / 60:.2f}min)')
 
     if args.wandb_project is not None:
-        total_crashes = sum([len(crash_times) for crash_times in crashes_by_trace.values()])
-        wandb.log({'crash_count': total_crashes })
+        wandb.log({'crash_count': total_crashes, 'whiteness_cmd': avg_cmd_whiteness, 'whiteness_eff': avg_eff_whiteness})
         wandb.finish()
