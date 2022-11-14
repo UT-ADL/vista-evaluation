@@ -7,3 +7,4 @@ nohup.out
 /runs/
 models/mono+stereo_640x192.zip
 models/mono+stereo_640x192
+wandb
