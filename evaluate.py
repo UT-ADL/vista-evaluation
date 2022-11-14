@@ -206,7 +206,8 @@ if __name__ == '__main__':
         config = {
             'model_path': args.model,
             'trace_paths': args.traces,
-            'dynamics_model': args.dynamics,
+            'dynamics': args.dynamics,
+            'dynamics_model': PATH_TO_LEARNED_DYNAMICS_MODEL,
             'antialias': args.antialias,
             'resize_mode': args.resize_mode,
             'save_video': args.save_video,
