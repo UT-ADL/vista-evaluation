@@ -21,11 +21,11 @@ The key **evaluation metric** is the number of crashes, where a crash is defined
 
 The VISTA simulator is run on *traces*, i.e. drive recordings in a VISTA-specific format. 
 
-Download the official benchmark [traces](https://owncloud.ut.ee/owncloud/s/MpcyyzSC7qdgc2d) from the University of Tartu ownCloud. The archive contains two traces-directories, representing two drives through the track in different directions: 
-- `2021-10-26-10-49-06_e2e_rec_ss20_elva_eval_chunk` (4.3km section of SS10+14 Elva)
-- `2021-10-26-11-08-59_e2e_rec_ss20_elva_back_eval_chunk` (4.3km section of SS10+14 Elva, reversed)
+Download the official benchmark [traces](https://owncloud.ut.ee/owncloud/s/cRj2teJCLpYpMmz) from the University of Tartu ownCloud. There are two archives, representing two drives through the track in different directions: 
+- `ebm-paper-mae-s2-forward_2022-09-23-10-31-24-resize` (4.3km section of SS10+14 Elva)
+- `ebm-paper-mae-s2-backward_2022-09-21-12-34-47-resize` (4.3km section of SS10+14 Elva, reversed)
 
-Put the traces into the `traces` folder in the root of the repository.
+Unzip the archives and put the resulting two folders into the `traces` folder in the root of the repository.
 
 > If you'd like extra, unofficial evaluation traces, you can:
 > - use VISTA-provided [sample traces](https://www.dropbox.com/s/62pao4mipyzk3xu/vista_traces.zip?dl=1)
