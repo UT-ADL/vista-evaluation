@@ -24,7 +24,7 @@ def process_bag(output_dir, path_to_bag, topics, resize_mode, max_duration=0):
 
     video_stream = VideoStream(os.path.join(output_dir, 'camera_front.avi'), fps=30, lossless=True)
 
-    camera_csv = open(os.path.join(output_dir, 'camera.csv'), 'w')
+    camera_csv = open(os.path.join(output_dir, 'camera_front.csv'), 'w')
     speed_csv = open(os.path.join(output_dir, 'speed.csv'), 'w')
     curvature_csv = open(os.path.join(output_dir, 'curvature.csv'), 'w')
 

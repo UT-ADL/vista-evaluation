@@ -21,7 +21,7 @@ from vista.entities.sensors.camera_utils.ViewSynthesis import DepthModes
 
 from src.preprocessing import grab_and_preprocess_obs, get_camera_size
 from src.metrics import calculate_whiteness
-from src.video import VideoStreamCompressed
+from src.video import VideoStream
 from src.dynamics_model import OnnxDynamicsModel, ExpMovingAverageDynamicsModel
 from src.steering_model import OnnxSteeringModel
 from src.car_constants import LEXUS_LENGTH, LEXUS_WIDTH, LEXUS_WHEEL_BASE, LEXUS_STEERING_RATIO
@@ -55,10 +55,10 @@ def check_out_of_lane(car):
     return distance_from_center > half_road_width
 
 
-def run_evaluation_episode(trace_name, model, world, camera, car, antialias, video_dir, save_video=False, resize_mode='resize', dynamics_model=None):
+def run_evaluation_episode(trace_name, model, world, camera, car, video_dir, save_video=False, resize_mode='resize', dynamics_model=None):
     if save_video:
-        stream = VideoStreamCompressed(video_dir, FPS, suffix='_full')
-        stream_cropped = VideoStreamCompressed(video_dir, FPS, suffix='_cropped', no_encoding=True)
+        stream = VideoStream(os.path.join(video_dir, 'full.avi'), FPS, lossless=False)
+        stream_cropped = VideoStream(os.path.join(video_dir, 'cropped.avi'), FPS, lossless=True)
 
     i_step = 0
     i_segment = 0
@@ -68,7 +68,7 @@ def run_evaluation_episode(trace_name, model, world, camera, car, antialias, vid
     world.reset()
     car.reset(0, i_segment, FRAME_RESET_OFFSET)
     display.reset()
-    observation = grab_and_preprocess_obs(car, camera, antialias, resize_mode)
+    observation = grab_and_preprocess_obs(car, camera, resize_mode)
 
     car_timestamp_start = car._timestamp
     n_segments = len(car.trace.good_timestamps[car.trace._multi_sensor.master_sensor])
@@ -103,14 +103,14 @@ def run_evaluation_episode(trace_name, model, world, camera, car, antialias, vid
         vista_step(car, curvature)
         step_time = time.perf_counter() - step_start
 
-        observation = grab_and_preprocess_obs(car, camera, antialias, resize_mode)
+        observation = grab_and_preprocess_obs(car, camera, resize_mode)
         i_step += 1
 
         vis_start = time.perf_counter()
         if save_video:
             vis_img = display.render()
             stream.write(vis_img[:, :, ::-1])
-            stream_cropped.write(observation * 255.)
+            stream_cropped.write(observation[:, :, ::-1] * 255.)
         vis_time = time.perf_counter() - vis_start
 
         cmd_whiteness = calculate_whiteness(cmd_steering_angle_history, timestamps)
@@ -135,7 +135,7 @@ def run_evaluation_episode(trace_name, model, world, camera, car, antialias, vid
 
             display.reset()
             if dynamics_model is not None: dynamics_model.reset()
-            observation = grab_and_preprocess_obs(car, camera, antialias, resize_mode)
+            observation = grab_and_preprocess_obs(car, camera, resize_mode)
 
         if car.done:
             if i_segment < n_segments - 1:
@@ -144,7 +144,7 @@ def run_evaluation_episode(trace_name, model, world, camera, car, antialias, vid
                 car.reset(0, i_segment, FRAME_RESET_OFFSET)
                 display.reset()
                 if dynamics_model is not None: dynamics_model.reset()
-                observation = grab_and_preprocess_obs(car, camera, antialias, resize_mode)
+                observation = grab_and_preprocess_obs(car, camera, resize_mode)
             else:
                 logging.debug(f'Finished trace at step {i_step} ({car._timestamp - car_timestamp_start:.0f}s).')
                 break
@@ -166,8 +166,8 @@ def run_evaluation_episode(trace_name, model, world, camera, car, antialias, vid
 
     if save_video:
         logging.debug('Saving trace videos to:', video_dir)
-        stream.save(os.path.join(video_dir, 'full.avi'))
-        stream_cropped.save(os.path.join(video_dir, 'cropped.avi'))
+        stream.save()
+        stream_cropped.save()
 
     return run_metrics
 
@@ -176,14 +176,14 @@ if __name__ == '__main__':
     run_start_time = int(time.time())
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--antialias', action='store_true', help='Use antialiasing when resizing the image')
     parser.add_argument('--wandb-project', type=str, help='Weights and Biases project for logging.')
     parser.add_argument('--save-video', action='store_true', help='Save video of model run.')
     parser.add_argument('--model', type=str, required=True, help='Path to ONNX model.')
     parser.add_argument('--resize-mode', default='resize', choices=['full', 'resize'], help='Resize mode of the input images (bags pre-processed for Vista).')
     parser.add_argument('--dynamics', default='learned', choices=['learned', 'exp-mov-avg', 'none'], help='Which vehicle dynamics model to use. Defaults to a learned 10hz GRU model.')
     parser.add_argument('--road-width', type=float, default=4.0, help='Vista road width in meters.')
-    parser.add_argument('--comment', type=str, default=None, help='Run description.')
+    parser.add_argument('--comment', type=str, default=None, help='W&B run description.')
+    parser.add_argument('--tags', type=str, nargs='+', default=[], help='W&B run tags.')
     parser.add_argument('--depth-mode', type=str, default='monodepth', choices=['fixed_plane', 'monodepth'], help='''Depth approximation mode. Monodepth uses a neural network to estimate depth from a single image, 
                                                                                                                      resulting in fewer artifacts in synthesized images. Fixed plane uses a fixed plane at a fixed distance from the camera.''')
     parser.add_argument('--traces', type=str, nargs='+', default=None, required=True, help='Traces to evaluate on.')
@@ -208,13 +208,12 @@ if __name__ == '__main__':
             'trace_paths': args.traces,
             'dynamics': args.dynamics,
             'dynamics_model': PATH_TO_LEARNED_DYNAMICS_MODEL,
-            'antialias': args.antialias,
             'resize_mode': args.resize_mode,
             'save_video': args.save_video,
             'road_width': args.road_width,
             'depth_mode': args.depth_mode,
         }
-        wandb.init(project=args.wandb_project, config=config, job_type='vista-evaluation', notes=args.comment)
+        wandb.init(project=args.wandb_project, config=config, job_type='vista-evaluation', notes=args.comment, tags=args.tags)
 
     trace_paths = [os.path.join(args.traces_root, track_path) for track_path in args.traces]
     total_n_crashes = 0
@@ -243,7 +242,7 @@ if __name__ == '__main__':
         camera = car.spawn_camera(config={'name': 'camera_front', 'size': camera_size, 'depth_mode': DepthModes.MONODEPTH})
         display = vista.Display(world, display_config={'gui_scale': 2, 'vis_full_frame': True })
 
-        metrics = run_evaluation_episode(os.path.basename(trace), model, world, camera, car, antialias=args.antialias, 
+        metrics = run_evaluation_episode(os.path.basename(trace), model, world, camera, car, 
                                                            save_video=args.save_video, 
                                                            video_dir=run_trace_dir,
                                                            resize_mode=args.resize_mode,
