@@ -1,40 +1,43 @@
 import os
 import argparse
-import socket
 import time
-
-import pandas as pd
-import numpy as np
-from scipy.interpolate import interp1d
-import rosbag
-from collections import defaultdict
-from tqdm import tqdm
+import csv
 
 import cv2
-import torch
-import torchvision.transforms.functional as F
-from torchvision.transforms import InterpolationMode
+import numpy as np
+from scipy.interpolate import interp1d
+from tqdm import tqdm
+import rosbag
 
-from src.video import VideoStream, compressed_imgmsg_to_cv2
-from src.car_constants import FULL_IMAGE_HEIGHT, FULL_IMAGE_WIDTH, IMAGE_CROP_XMAX, IMAGE_CROP_XMIN, IMAGE_CROP_YMAX, IMAGE_CROP_YMIN
+from src.video import VideoStream
+from src.preprocessing import resize_before_crop
 
 CAMERA_TOPIC_30HZ = '/interfacea/link2/image/compressed'
 SPEED_TOPIC_30HZ = '/ssc/velocity_accel_cov'
 CURVATURE_TOPIC_30HZ = '/ssc/curvature_feedback'
 
-def read_bag(path_to_bag, topics, resize_mode, max_duration=0, downsample_factor=1):
+
+def process_bag(output_dir, path_to_bag, topics, resize_mode, max_duration=0):
     bag = rosbag.Bag(path_to_bag, 'r')
     msg_count = bag.get_message_count(topics)
     progress = tqdm(total=msg_count)
 
-    video_stream = VideoStream()
-    frame_idx = 0
+    video_stream = VideoStream(os.path.join(output_dir, 'camera_front.avi'), fps=30, lossless=True)
 
-    camera_dict = defaultdict(list)
-    speed_dict = defaultdict(list)
-    curvature_dict = defaultdict(list)
+    camera_csv = open(os.path.join(output_dir, 'camera.csv'), 'w')
+    speed_csv = open(os.path.join(output_dir, 'speed.csv'), 'w')
+    curvature_csv = open(os.path.join(output_dir, 'curvature.csv'), 'w')
+
+    camera_csv_writer = csv.DictWriter(camera_csv, fieldnames=['#frame_num', 'ros_time'])
+    speed_csv_writer = csv.DictWriter(speed_csv, fieldnames=['time', 'speed'])
+    curvature_csv_writer = csv.DictWriter(curvature_csv, fieldnames=['time', 'curvature'])
+
+    camera_csv_writer.writeheader()
+    speed_csv_writer.writeheader()
+    curvature_csv_writer.writeheader()
 
     bag_start_time = None
+    frame_idx = 0
 
     for topic, msg, ts in bag.read_messages(topics):
         msg_timestamp = msg.header.stamp.to_sec()
@@ -47,115 +50,77 @@ def read_bag(path_to_bag, topics, resize_mode, max_duration=0, downsample_factor
             break
 
         if topic == CAMERA_TOPIC_30HZ:
-            camera_dict['time'].append(msg_timestamp)
+            camera_csv_writer.writerow({'#frame_num': frame_idx, 'ros_time': msg_timestamp})
             vis_img = compressed_imgmsg_to_cv2(msg)
 
             if resize_mode == 'full_res':
                 # original, in-distribution but slow
                 pass
-
-            elif resize_mode == 'downsample': 
-                # needs intrinsics scaling, and cropping+resizing during inference, had bad performance
-                vis_img = downsample(vis_img, factor=downsample_factor)
-
             elif resize_mode == 'resize': 
                 # needs intrinsics scaling and cropping during inference
                 vis_img = resize_before_crop(vis_img)
+            else: 
+                raise NotImplementedError(f'No such resize mode: "{resize_mode}"')
 
-            elif resize_mode == 'resize_and_crop': 
-                # # needs intrinsics scaling and probably distortion params update (not sure to what values) 
-                # # and normalization during inference
-                # vis_img = resize_before_crop(vis_img)
-                # vis_img = crop_after_resize(vis_img)
-                raise NotImplementedError('resize_and_crop not implemented')
-
-            video_stream.write(vis_img, index=frame_idx)
+            video_stream.write(vis_img)
             frame_idx += 1
         elif topic == SPEED_TOPIC_30HZ:
-            speed_dict['time'].append(msg_timestamp)
-            speed_dict['speed'].append(msg.velocity)
+            speed_csv_writer.writerow({'time': msg_timestamp, 'speed': msg.velocity})
         elif topic == CURVATURE_TOPIC_30HZ:
-            curvature_dict['time'].append(msg_timestamp)
-            curvature_dict['curvature'].append(msg.curvature)
+            curvature_csv_writer.writerow({'time': msg_timestamp, 'curvature': msg.curvature})
 
         if max_duration > 0:
             progress.set_description_str(f'Processed {seconds_since_start:.2f}s/{max_duration:.2f}s')
         progress.update(1)
         
+    video_stream.save()
     bag.close()
+    camera_csv.close()
+    speed_csv.close()
+    curvature_csv.close()
 
-    return video_stream, camera_dict, speed_dict, curvature_dict
+    save_yaw_rate(output_dir)
+    os.remove(os.path.join(output_dir, 'curvature.csv'))
+    create_params_file(output_dir, template_file=f'./calibration/params-{resize_mode}.xml')
 
-def create_timestamp_index(df, timestamp_col='time', index_col='index'):
-    df[timestamp_col] = pd.to_datetime(df[timestamp_col])
-    df.set_index([timestamp_col], inplace=True)
-    df.index.rename(index_col, inplace=True)
+def compressed_imgmsg_to_cv2(cmprs_img_msg):
+    str_msg = cmprs_img_msg.data
+    buf = np.ndarray(shape=(1, len(str_msg)),
+                        dtype=np.uint8, buffer=str_msg)
+    im = cv2.imdecode(buf, cv2.IMREAD_UNCHANGED)
+    return im
 
-def save_video(stream, output_dir):
-    output_path = os.path.join(output_dir, 'camera_front.avi')
-    stream.save(output_path)
+def save_yaw_rate(output_dir):
+    with open(os.path.join(output_dir, 'speed.csv'), 'r') as f:
+        speed_reader = csv.DictReader(f)
+        speeds = np.array([[float(row['time']), float(row['speed'])] for row in speed_reader]).reshape(-1, 2)
+        speed_times = speeds[:, 0]
+        speed_values = speeds[:, 1]
+    with open(os.path.join(output_dir, 'curvature.csv'), 'r') as f:
+        curvatures = csv.DictReader(f)
+        curvatures = np.array([[float(row['time']), float(row['curvature'])] for row in curvatures]).reshape(-1, 2)
+        curvature_times = curvatures[:, 0]
+        curvature_values = curvatures[:, 1]
+    
+    # NOTE: here we assume that the frequency is similar for both topics
+    min_len = min( len(curvature_times), len(speed_times) )
+    speed_times = speed_times[:min_len]
+    speed_values = speed_values[:min_len]
+    curvature_times = curvature_times[:min_len]
+    curvature_values = curvature_values[:min_len]
+    f_speed = interp1d(speed_times.astype(np.float64), speed_values, fill_value='extrapolate')
 
-def downsample(cv_img, factor=1):
-    scaled_size = np.array(cv_img.shape[:2]) // factor
-    img = torch.tensor(cv_img, dtype=torch.uint8).permute(2, 0, 1)
-    img = F.resize(img, tuple(scaled_size), antialias=True, interpolation=InterpolationMode.BILINEAR)
-    return img.permute(1, 2, 0).numpy()
+    timestamps = curvature_times
+    yaw_rate = curvature_values * np.maximum(f_speed(timestamps), 1e-10)
+    imu_csv_writer = csv.DictWriter(open(os.path.join(output_dir, 'imu.csv'), 'w'), fieldnames=['time', 'ax', 'ay', 'az', 
+                                                                                                        'rx', 'ry', 'rz',
+                                                                                                        'qx', 'qy', 'qz', 'qw'])
 
-def resize_before_crop(cv_img, antialias=False, scale=0.2):
-    '''Resized such that only cropping is required to get the final size during inference.'''
-    scaled_height = int(FULL_IMAGE_HEIGHT * scale)
-    scaled_width = int(FULL_IMAGE_WIDTH * scale)
-
-    img = torch.tensor(cv_img, dtype=torch.uint8).permute(2, 0, 1)
-    img = F.resize(img, (scaled_height, scaled_width), antialias=antialias, interpolation=InterpolationMode.BILINEAR)
-    return img.permute(1, 2, 0).numpy()
-
-def resize_original(cv_img, scale=0.2):
-    '''Original resizing function, same as the one used on the car.
-    Note: models in EBM thesis and paper were trained on a different vertical cropping, but were tested on this cropping.
-    '''
-    height = IMAGE_CROP_YMAX - IMAGE_CROP_YMIN
-    width = IMAGE_CROP_XMAX - IMAGE_CROP_XMIN
-    scaled_height = int(height * scale)
-    scaled_width = int(width * scale)
-    return cv2.resize(cv_img, dsize=(scaled_width, scaled_height), interpolation=cv2.INTER_LINEAR)
-
-def crop_after_resize(cv_img, scale=0.2):
-    '''Included here only for reference. It is used in evaluation code.'''
-    crop_xmin = int(IMAGE_CROP_XMIN * scale)
-    crop_xmax = int(IMAGE_CROP_XMAX * scale)
-    crop_ymin = int(IMAGE_CROP_YMIN * scale)
-    crop_ymax = int(IMAGE_CROP_YMAX * scale)
-
-    return cv_img[crop_ymin:crop_ymax, crop_xmin:crop_xmax, :]
-
-def save_video_timestamps(camera_dict, output_dir):
-    camera_df = pd.DataFrame(data=camera_dict)
-    df = pd.DataFrame({'ros_time': camera_df['time']})
-    df.index.name = '#frame_num'
-    df.to_csv(os.path.join(output_dir, 'camera_front.csv'))
-
-def save_speed(speed_dict, output_dir):
-    speed_df = pd.DataFrame(data=speed_dict, columns=['time', 'speed'])
-    speed_df.to_csv(os.path.join(output_dir, 'speed.csv'), index=False)
-    return speed_df
-
-def save_yaw_rate(curvature_dict, speed_df, output_dir):
-    curvature_df = pd.DataFrame(data=curvature_dict, columns=['time', 'curvature'])
-
-    # assume that the frequency is similar for both topics
-    min_len = min( len(curvature_df), len(speed_df) )
-    curvs = curvature_df[:min_len]
-    spdss = speed_df[:min_len]
-    f_speed = interp1d(spdss['time'].values.astype(np.float64), spdss['speed'], fill_value='extrapolate')
-    timestamps = curvs['time']
-    yaw_rate = curvs['curvature'] * np.maximum(f_speed(timestamps), 1e-10)
-    zeros = [0]*len(spdss)
-    imu_df = pd.DataFrame( {'time': curvs['time'], 'ax': zeros, 'ay': zeros, 'az': zeros, 
-                                                   'rx': zeros, 'ry': zeros, 'rz': yaw_rate, # <----
-                                                   'qx': zeros, 'qy': zeros, 'qz': zeros, 'qw': zeros})
-    imu_df.set_index('time')
-    imu_df.to_csv(os.path.join(output_dir, 'imu.csv'), index=False)
+    imu_csv_writer.writeheader()
+    for i in range(len(timestamps)):
+        imu_csv_writer.writerow({'time': timestamps[i], 'ax': 0, 'ay': 0, 'az': 0, 
+                                                        'rx': 0, 'ry': 0, 'rz': yaw_rate[i],
+                                                        'qx': 0, 'qy': 0, 'qz': 0, 'qw': 0})
 
 def create_params_file(output_dir, template_file='./calibration/params.xml'):
     with open(template_file, 'r') as f:
@@ -163,15 +128,13 @@ def create_params_file(output_dir, template_file='./calibration/params.xml'):
     with open(os.path.join(output_dir, 'params.xml'), 'w') as f:
         f.write(params)
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert a rosbag to a vista file')
-    parser.add_argument('--bag', required=True, help='Name of the bag file') # e.g. '2022-06-29-10-46-40_e2e_elva__forward_steering2.bag'
-    parser.add_argument('--downsample-factor', type=int, default=4, help='Downsample factor for the camera images. Strongly recommended to use 2 or 4 to speed up further runs.')
+    parser.add_argument('--bag', required=True, help='Path to the bag file')
     parser.add_argument('--force', default=False, help='Override existing vista trace for given bag if the trace already exists.')
     parser.add_argument('--max-duration', type=float, default=0, help='Maximum duration of the bag file to process (in seconds).')
-    parser.add_argument('--output-root', required=True, help='Path to the output base directory.')
-    parser.add_argument('--resize-mode', required=False, default='resize', choices=['full_res', 'downsample', 'resize', 'resize_and_crop'], help='How to resize the images.')
+    parser.add_argument('--output-root', required=True, help='Path to the directory where traces live.')
+    parser.add_argument('--resize-mode', required=False, default='resize', choices=['full_res', 'resize'], help='How to resize the images.')
     args = parser.parse_args()
 
     bag_name = os.path.basename(args.bag).split('.')[0]
@@ -180,22 +143,11 @@ if __name__ == '__main__':
 
     topics = [CAMERA_TOPIC_30HZ, SPEED_TOPIC_30HZ, CURVATURE_TOPIC_30HZ]
     
-    bag_read_start = time.perf_counter()
-    video_stream, camera_dict, speed_dict, curvature_dict = read_bag(args.bag, topics, args.resize_mode, max_duration=args.max_duration, downsample_factor=args.downsample_factor)
-    print('Done reading!')
-    bag_read_end = time.perf_counter()
+    start_time = time.perf_counter()
+    process_bag(output_dir, args.bag, topics, args.resize_mode, max_duration=args.max_duration)
+    end_time = time.perf_counter()
+    print('Done creating a trace!')
 
-    save_start = time.perf_counter()
-    save_video(video_stream, output_dir)
-    save_video_timestamps(camera_dict, output_dir)
-    speed_df = save_speed(speed_dict, output_dir)
-    save_yaw_rate(curvature_dict, speed_df, output_dir)
-    create_params_file(output_dir, template_file=f'./calibration/params-{args.resize_mode}.xml')
-    save_end = time.perf_counter()
-    print('Done saving!')
+    total_time = end_time - start_time
 
-    bag_read_time = bag_read_end - bag_read_start
-    save_time = save_end - save_start
-    total_time = bag_read_time + save_time
-
-    print(f'\nTime spent: {total_time:.2f} seconds (reading: {bag_read_time:.2f}, saving: {save_time:.2f})')
+    print(f'\nTime spent: {total_time:.2f} seconds')
