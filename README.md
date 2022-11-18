@@ -61,6 +61,12 @@ conda activate vista
 pip install -r requirements.txt
 ```
 
+If you want to train your own vehicle dynamics model, install a more complete dependencies list:
+
+```bash
+pip install -r requirements-training.txt
+```
+
 3. (optional) Install ROS dependencies (only necessary for creating custom VISTA traces from your bag files):
 
 ```bash
