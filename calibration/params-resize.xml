@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <VISTA>
-    <!-- NOTE: This file is a template from which we create Vista traces. See actual files in "/.../end-to-end/vista/<bag>/params.xml"  -->
+    <!-- NOTE: This file is a template that gets copied to newly-created Vista traces. -->
     <SENSORS>
         <CAMERA Name="camera_front" Type="gmsl">
             <PROPERTY Name="Model" Value="pinhole"/>
-            <!-- could try 0, 0, 0, 1 -->
             <PROPERTY Name="Quaternion" Value="0, 0, -0.035265025029250387, 0.9996807883070832"/>
-            <PROPERTY Name="Position" Value="0, 1.6, 0"/>
-            <!-- could try 0.00 -->
+            <PROPERTY Name="Position" Value="0, 1.68, -0.2"/>
             <PROPERTY Name="Yaw" Value="0.05"/>
             <PROPERTY Name="params" Value=""/>
             <PROPERTY Name="width" Hint="intrinsic" Value="384"/>
