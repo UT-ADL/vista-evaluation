@@ -81,7 +81,6 @@ pip install git+https://github.com/UT-ADL/vista.git
 Our [fork](https://github.com/UT-ADL/vista) has the following improvements:
 - added monocular depth estimation using [monodepth2](https://github.com/nianticlabs/monodepth2) for artifact-free view reprojection
     - the original [VISTA paper](https://ieeexplore.ieee.org/document/8957584) reported using monocular depth estimation in their experiments, citing [monodepth](https://github.com/mrharicot/monodepth), but the authors did not include it in the codebase
-- added a learned vehicle dynamics model to simulate the effect of a real car's actuators smoothing the predicted steering angle
 - fixed a bug that in rare cases created zero-length segments which made the simulator crash
 
 ## Usage
@@ -103,6 +102,3 @@ Scripts:
 Environment variables:
 - `PATH_TO_LEARNED_DYNAMICS_MODEL` - path to the learned dynamics model to use for smoothing the steering angle. Defaults to `./models/dynamics_model_v6_10hz.onnx`.
 - `CUDA_VISIBLE_DEVICES` - a comma-separated list of GPU indices to use for evaluation. Defaults to `0`.
-- `FFMPEG_BIN` - path to the ffmpeg binary. Defaults to `ffmpeg` (or `/usr/local/bin/ffmpeg` for neuron).
-- `FFMPEG_NVIDIA_ACCEL` - if set to `true`, enables GPU hardware acceleration for ffmpeg. Requires ffmpeg to be built with CUDA.
-
