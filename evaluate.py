@@ -1,4 +1,6 @@
 import os
+import sys
+
 import dotenv
 dotenv.load_dotenv()
 os.environ['PYOPENGL_PLATFORM'] = 'egl'
@@ -23,9 +25,8 @@ from src.preprocessing import grab_and_preprocess_obs, get_camera_size
 from src.metrics import calculate_whiteness
 from src.video import VideoStream
 from src.dynamics_model import OnnxDynamicsModel, ExpMovingAverageDynamicsModel
-from src.steering_model import OnnxSteeringModel
+from src.steering_model import ConditionalSteeringModel, ConditionalWaypointsModel, SteeringModel
 from src.car_constants import LEXUS_LENGTH, LEXUS_WIDTH, LEXUS_WHEEL_BASE, LEXUS_STEERING_RATIO
-
 
 PATH_TO_LEARNED_DYNAMICS_MODEL = os.environ.get('PATH_TO_LEARNED_DYNAMICS_MODEL', os.path.join(os.path.dirname(__file__), 'models', 'dynamics_model_v6_10hz.onnx'))
 OUTPUT_DIR = 'out'
@@ -37,7 +38,6 @@ SECONDS_SKIP_AFTER_CRASH = 2
 FRAME_RESET_OFFSET = 1
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-
 
 def vista_step(car, curvature=None, speed=None):
     if curvature is None: 
@@ -86,8 +86,7 @@ def run_evaluation_episode(trace_name, model, world, camera, car, video_dir, sav
         inference_start = time.perf_counter()
         model_input = np.moveaxis(observation, -1, 0)
         model_input = np.expand_dims(model_input, axis=0)
-        predictions = model.predict(model_input)
-        steering_angle = predictions.item()
+        steering_angle, speed = model.predict(model_input, car)
 
         timestamps.append(car.timestamp)
         cmd_steering_angle_history.append(math.degrees(steering_angle))
@@ -100,7 +99,7 @@ def run_evaluation_episode(trace_name, model, world, camera, car, video_dir, sav
         curvature = steering2curvature(math.degrees(steering_angle), LEXUS_WHEEL_BASE, LEXUS_STEERING_RATIO)
 
         step_start = time.perf_counter()
-        vista_step(car, curvature)
+        vista_step(car, curvature, speed)
         step_time = time.perf_counter() - step_start
 
         observation = grab_and_preprocess_obs(car, camera, resize_mode)
@@ -171,6 +170,21 @@ def run_evaluation_episode(trace_name, model, world, camera, car, video_dir, sav
 
     return run_metrics
 
+
+def create_steering_model(args):
+    if args.model_type == "steering":
+        model = SteeringModel(args.model)
+    elif args.model_type == "conditional-steering":
+        model = ConditionalSteeringModel(args.model, "models/speed/steering-speed-v1.onnx")
+    elif args.model_type == "conditional-waypoints":
+        model = ConditionalWaypointsModel(args.model, "models/speed/steering-speed-v1.onnx")
+    else:
+        print(f"Uknown model type {args.model_type}")
+        sys.exit()
+
+    return model
+
+
 if __name__ == '__main__':
 
     run_start_time = int(time.time())
@@ -179,6 +193,7 @@ if __name__ == '__main__':
     parser.add_argument('--wandb-project', type=str, help='Weights and Biases project for logging.')
     parser.add_argument('--save-video', action='store_true', help='Save video of model run.')
     parser.add_argument('--model', type=str, required=True, help='Path to ONNX model.')
+    parser.add_argument('--model-type', type=str, required=False, default="steering", help="Model type to use for making predictions.")
     parser.add_argument('--resize-mode', default='resize', choices=['full', 'resize'], help='Resize mode of the input images (bags pre-processed for Vista).')
     parser.add_argument('--dynamics', default='learned', choices=['learned', 'exp-mov-avg', 'none'], help='Which vehicle dynamics model to use. Defaults to a learned 10hz GRU model.')
     parser.add_argument('--road-width', type=float, default=4.0, help='Vista road width in meters.')
@@ -195,7 +210,9 @@ if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
-    model = OnnxSteeringModel(args.model) # aquire GPU early (helpful for distributing runs across GPUs on a single machine)
+    # aquire GPU early (helpful for distributing runs across GPUs on a single machine)
+    model = create_steering_model(args)
+
     dynamics_model = None
     if args.dynamics == 'learned':
         dynamics_model = OnnxDynamicsModel(PATH_TO_LEARNED_DYNAMICS_MODEL)
