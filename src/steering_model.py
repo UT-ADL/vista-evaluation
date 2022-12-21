@@ -57,14 +57,20 @@ class ConditionalSteeringModel(SteeringModel):
 
 class ConditionalWaypointsModel(SteeringModel):
 
-    def __init__(self, path_to_steering_model, path_to_speed_model):
+    def __init__(self, path_to_steering_model, path_to_speed_model, num_waypoints=4, ref_distance=6.8,
+                 use_vehicle_pos=True, latitudinal_correction=-0.30):
         super().__init__(path_to_steering_model)
         self.speed_model = OnnxModel(path_to_speed_model)
+        self.num_waypoints = num_waypoints
+        self.ref_distance = ref_distance
+        self.use_vehicle_pos = use_vehicle_pos
+        self.latitudinal_correction = latitudinal_correction
 
     def predict(self, input_frame, car):
         predictions = self.steering_model.predict(input_frame)
         predictions = predictions[0].reshape(3, -1)
         waypoints = predictions[car.human_turn_signal]
-        steering_angle = calculate_steering_angle(waypoints, num_waypoints=2, ref_distance=8.5)
+        steering_angle = calculate_steering_angle(waypoints, self.num_waypoints, self.ref_distance,
+                                                  self.use_vehicle_pos, self.latitudinal_correction)
         speed = self.speed_model.predict(input_frame)[0].item()
         return steering_angle, speed
