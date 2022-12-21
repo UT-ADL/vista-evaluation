@@ -175,9 +175,9 @@ def create_steering_model(args):
     if args.model_type == "steering":
         model = SteeringModel(args.model)
     elif args.model_type == "conditional-steering":
-        model = ConditionalSteeringModel(args.model, "models/speed/steering-speed-v1.onnx")
+        model = ConditionalSteeringModel(args.model, args.speed_model)
     elif args.model_type == "conditional-waypoints":
-        model = ConditionalWaypointsModel(args.model, "models/speed/steering-speed-v1.onnx")
+        model = ConditionalWaypointsModel(args.model, args.speed_model)
     else:
         print(f"Uknown model type {args.model_type}")
         sys.exit()
@@ -192,7 +192,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--wandb-project', type=str, help='Weights and Biases project for logging.')
     parser.add_argument('--save-video', action='store_true', help='Save video of model run.')
-    parser.add_argument('--model', type=str, required=True, help='Path to ONNX model.')
+    parser.add_argument('--model', type=str, required=True, help='Path to ONNX model to predict vehicle steering.')
+    parser.add_argument('--speed-model', type=str, required=False, help='Path to ONNX model to predict vehicle speed.')
     parser.add_argument('--model-type', type=str, required=False, default="steering", help="Model type to use for making predictions.")
     parser.add_argument('--resize-mode', default='resize', choices=['full', 'resize'], help='Resize mode of the input images (bags pre-processed for Vista).')
     parser.add_argument('--dynamics', default='learned', choices=['learned', 'exp-mov-avg', 'none'], help='Which vehicle dynamics model to use. Defaults to a learned 10hz GRU model.')
