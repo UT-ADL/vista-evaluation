@@ -55,7 +55,7 @@ def check_out_of_lane(car):
     return distance_from_center > half_road_width
 
 
-def run_evaluation_episode(trace_name, model, world, camera, car, video_dir, save_video=False, resize_mode='resize', dynamics_model=None):
+def run_evaluation_episode(trace_name, model, world, camera, car, display, logging, video_dir, save_video=False, resize_mode='resize', dynamics_model=None):
     if save_video:
         stream = VideoStream(os.path.join(video_dir, 'full.avi'), FPS, lossless=False)
         stream_cropped = VideoStream(os.path.join(video_dir, 'cropped.avi'), FPS, lossless=True)
@@ -201,6 +201,7 @@ if __name__ == '__main__':
     parser.add_argument('--tags', type=str, nargs='+', default=[], help='W&B run tags.')
     parser.add_argument('--depth-mode', type=str, default='monodepth', choices=['fixed_plane', 'monodepth'], help='''Depth approximation mode. Monodepth uses a neural network to estimate depth from a single image, 
                                                                                                                      resulting in fewer artifacts in synthesized images. Fixed plane uses a fixed plane at a fixed distance from the camera.''')
+    parser.add_argument('--turn-signals', action='store_true', help="Use turn signals for conditioning driving directions.")
     parser.add_argument('--traces', type=str, nargs='+', default=None, required=True, help='Traces to evaluate on.')
     parser.add_argument('--traces-root', type=str, default='./traces', help='Root directory of traces. Defaults to `./traces`.')
     parser.add_argument('--verbose', action='store_true', help='Print debug messages.')
@@ -229,6 +230,7 @@ if __name__ == '__main__':
             'save_video': args.save_video,
             'road_width': args.road_width,
             'depth_mode': args.depth_mode,
+            'turn_signals': args.turn_signals
         }
         wandb.init(project=args.wandb_project, config=config, job_type='vista-evaluation', notes=args.comment, tags=args.tags)
 
@@ -245,7 +247,7 @@ if __name__ == '__main__':
         run_trace_dir = os.path.join(run_dir, os.path.basename(trace))
         os.makedirs(run_trace_dir) # will fail if the directory already exists
 
-        world = vista.World([trace], trace_config={'road_width': args.road_width})
+        world = vista.World([trace], trace_config={'road_width': args.road_width, 'turn_signals': args.turn_signals})
         car = world.spawn_agent(
             config={
                 'length': LEXUS_LENGTH,
@@ -259,7 +261,7 @@ if __name__ == '__main__':
         camera = car.spawn_camera(config={'name': 'camera_front', 'size': camera_size, 'depth_mode': DepthModes.MONODEPTH})
         display = vista.Display(world, display_config={'gui_scale': 2, 'vis_full_frame': True })
 
-        metrics = run_evaluation_episode(os.path.basename(trace), model, world, camera, car, 
+        metrics = run_evaluation_episode(os.path.basename(trace), model, world, camera, car, display, logging,
                                                            save_video=args.save_video, 
                                                            video_dir=run_trace_dir,
                                                            resize_mode=args.resize_mode,
