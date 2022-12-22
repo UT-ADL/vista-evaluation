@@ -194,7 +194,7 @@ if __name__ == '__main__':
     parser.add_argument('--save-video', action='store_true', help='Save video of model run.')
     parser.add_argument('--model', type=str, required=True, help='Path to ONNX model to predict vehicle steering.')
     parser.add_argument('--speed-model', type=str, required=False, help='Path to ONNX model to predict vehicle speed.')
-    parser.add_argument('--model-type', type=str, required=False, default="steering", help="Model type to use for making predictions.")
+    parser.add_argument('--model-type', type=str, required=False, default="steering", choices=["steering", "conditional-steering", "conditional-waypoints"], help="Model type to use for making predictions.")
     parser.add_argument('--resize-mode', default='resize', choices=['full', 'resize'], help='Resize mode of the input images (bags pre-processed for Vista).')
     parser.add_argument('--dynamics', default='learned', choices=['learned', 'exp-mov-avg', 'none'], help='Which vehicle dynamics model to use. Defaults to a learned 10hz GRU model.')
     parser.add_argument('--road-width', type=float, default=4.0, help='Vista road width in meters.')
