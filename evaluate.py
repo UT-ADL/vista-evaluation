@@ -202,7 +202,6 @@ if __name__ == '__main__':
     parser.add_argument('--tags', type=str, nargs='+', default=[], help='W&B run tags.')
     parser.add_argument('--depth-mode', type=str, default='monodepth', choices=['fixed_plane', 'monodepth'], help='''Depth approximation mode. Monodepth uses a neural network to estimate depth from a single image, 
                                                                                                                      resulting in fewer artifacts in synthesized images. Fixed plane uses a fixed plane at a fixed distance from the camera.''')
-    parser.add_argument('--turn-signals', action='store_true', help="Use turn signals for conditioning driving directions.")
     parser.add_argument('--traces', type=str, nargs='+', default=None, required=True, help='Traces to evaluate on.')
     parser.add_argument('--traces-root', type=str, default='./traces', help='Root directory of traces. Defaults to `./traces`.')
     parser.add_argument('--verbose', action='store_true', help='Print debug messages.')
@@ -230,8 +229,7 @@ if __name__ == '__main__':
             'resize_mode': args.resize_mode,
             'save_video': args.save_video,
             'road_width': args.road_width,
-            'depth_mode': args.depth_mode,
-            'turn_signals': args.turn_signals
+            'depth_mode': args.depth_mode
         }
         wandb.init(project=args.wandb_project, config=config, job_type='vista-evaluation', notes=args.comment, tags=args.tags)
 
@@ -248,7 +246,7 @@ if __name__ == '__main__':
         run_trace_dir = os.path.join(run_dir, os.path.basename(trace))
         os.makedirs(run_trace_dir) # will fail if the directory already exists
 
-        world = vista.World([trace], trace_config={'road_width': args.road_width, 'turn_signals': args.turn_signals})
+        world = vista.World([trace], trace_config={'road_width': args.road_width})
         car = world.spawn_agent(
             config={
                 'length': LEXUS_LENGTH,
