@@ -1,12 +1,15 @@
 import os
 import socket
+
 import onnxruntime as ort
+
+from src.trajectory import calculate_steering_angle
 
 DEVICE_ID = int(os.environ.get('CUDA_AVAILABLE_DEVICES', '0').split(',')[0])
 IS_UT_HPC = 'falcon' in socket.gethostname()
 
 
-class OnnxSteeringModel:
+class OnnxModel:
     def __init__(self, path_to_onnx_model):
         options = ort.SessionOptions()
         if IS_UT_HPC:
@@ -28,3 +31,46 @@ class OnnxSteeringModel:
 
     def predict(self, input_frame):
         return self.session.run(None, { self.input_name: input_frame })[0]
+
+
+class SteeringModel:
+
+    def __init__(self, path_to_onnx_model):
+        self.steering_model = OnnxModel(path_to_onnx_model)
+
+    def predict(self, input_frame, car):
+        return self.steering_model.predict(input_frame).item(), None
+
+
+class ConditionalSteeringModel(SteeringModel):
+
+    def __init__(self, path_to_steering_model, path_to_speed_model):
+        super().__init__(path_to_steering_model)
+        self.speed_model = OnnxModel(path_to_speed_model) if path_to_speed_model else None
+
+    def predict(self, input_frame, car):
+        predictions = self.steering_model.predict(input_frame)
+        steering_angle = predictions[0][car.human_turn_signal].item()
+        speed = self.speed_model.predict(input_frame)[0].item() if self.speed_model else None
+        return steering_angle, speed
+
+
+class ConditionalWaypointsModel(SteeringModel):
+
+    def __init__(self, path_to_steering_model, path_to_speed_model, num_waypoints=4, ref_distance=6.8,
+                 use_vehicle_pos=True, lateral_correction=-0.30):
+        super().__init__(path_to_steering_model)
+        self.speed_model = OnnxModel(path_to_speed_model) if path_to_speed_model else None
+        self.num_waypoints = num_waypoints
+        self.ref_distance = ref_distance
+        self.use_vehicle_pos = use_vehicle_pos
+        self.lateral_correction = lateral_correction
+
+    def predict(self, input_frame, car):
+        predictions = self.steering_model.predict(input_frame)
+        predictions = predictions[0].reshape(3, -1)
+        waypoints = predictions[car.human_turn_signal]
+        steering_angle = calculate_steering_angle(waypoints, self.num_waypoints, self.ref_distance,
+                                                  self.use_vehicle_pos, self.lateral_correction)
+        speed = self.speed_model.predict(input_frame)[0].item() if self.speed_model else None
+        return steering_angle, speed

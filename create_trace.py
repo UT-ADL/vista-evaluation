@@ -15,6 +15,7 @@ from src.preprocessing import resize_before_crop
 CAMERA_TOPIC_30HZ = '/interfacea/link2/image/compressed'
 SPEED_TOPIC_30HZ = '/ssc/velocity_accel_cov'
 CURVATURE_TOPIC_30HZ = '/ssc/curvature_feedback'
+TURN_SIGNAL_TOPIC_30HZ = '/pacmod/parsed_tx/turn_rpt'
 
 
 def process_bag(output_dir, path_to_bag, topics, resize_mode, max_duration=0):
@@ -27,10 +28,12 @@ def process_bag(output_dir, path_to_bag, topics, resize_mode, max_duration=0):
     camera_csv = open(os.path.join(output_dir, 'camera_front.csv'), 'w')
     speed_csv = open(os.path.join(output_dir, 'speed.csv'), 'w')
     curvature_csv = open(os.path.join(output_dir, 'curvature.csv'), 'w')
+    turn_signal_csv = open(os.path.join(output_dir, 'turn_signal.csv'), 'w')
 
     camera_csv_writer = csv.DictWriter(camera_csv, fieldnames=['#frame_num', 'ros_time'])
     speed_csv_writer = csv.DictWriter(speed_csv, fieldnames=['time', 'speed'])
     curvature_csv_writer = csv.DictWriter(curvature_csv, fieldnames=['time', 'curvature'])
+    turn_signal_csv_writer = csv.DictWriter(turn_signal_csv, fieldnames=['time', 'turn_signal'])
 
     camera_csv_writer.writeheader()
     speed_csv_writer.writeheader()
@@ -68,6 +71,8 @@ def process_bag(output_dir, path_to_bag, topics, resize_mode, max_duration=0):
             speed_csv_writer.writerow({'time': msg_timestamp, 'speed': msg.velocity})
         elif topic == CURVATURE_TOPIC_30HZ:
             curvature_csv_writer.writerow({'time': msg_timestamp, 'curvature': msg.curvature})
+        elif topic == TURN_SIGNAL_TOPIC_30HZ:
+            turn_signal_csv_writer.writerow({'time': msg_timestamp, 'turn_signal': int(msg.output)})
 
         if max_duration > 0:
             progress.set_description_str(f'Processed {seconds_since_start:.2f}s/{max_duration:.2f}s')
@@ -141,7 +146,7 @@ if __name__ == '__main__':
     output_dir = os.path.join(args.output_root, bag_name + '-' + args.resize_mode)
     os.makedirs(output_dir, exist_ok=args.force)
 
-    topics = [CAMERA_TOPIC_30HZ, SPEED_TOPIC_30HZ, CURVATURE_TOPIC_30HZ]
+    topics = [CAMERA_TOPIC_30HZ, SPEED_TOPIC_30HZ, CURVATURE_TOPIC_30HZ, TURN_SIGNAL_TOPIC_30HZ]
     
     start_time = time.perf_counter()
     process_bag(output_dir, args.bag, topics, args.resize_mode, max_duration=args.max_duration)

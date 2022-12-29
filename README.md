@@ -94,6 +94,7 @@ Scripts:
     - `--traces` - names of traces in the `--trace-root` directory to run evaluation on, **required**
     - `--traces-root` - path to the folder containing the traces to evaluate on (`./traces` by default),
     - `--wandb-project` - if provided, results are logged to Weights & Biases.
+    - `--model-type` - type of the model used for predicting steering (and optionally speed) (`steering_model` by default)
 - create_trace.py - an example script to create a VISTA trace from a ROS bag. Uses topics:
     - RGB camera: `/interfacea/link2/image/compressed`
     - speed: `/ssc/velocity_accel_cov`
