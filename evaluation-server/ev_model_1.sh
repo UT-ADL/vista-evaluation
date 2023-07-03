@@ -1,6 +1,6 @@
 #Evaluate a model once per trace
 launch_task() {
-CUDA_AVAILABLE_DEVICES=$1 python ../evaluate.py --model ../models/$2 --wandb-project rally_2023 --traces-root traces --traces $3 --model-type $4  --road-width=2 
+CUDA_AVAILABLE_DEVICES=$1 python ../evaluate.py --model ../models/$2 --wandb-project rally_2023 --traces-root ../traces --traces $3 --model-type $4  --road-width=2 
 }
 launch_task 0 $1 2021-06-07-14-20-07_e2e_rec_ss6-resize $2 &
 launch_task 1 $1 2021-06-07-14-36-16_e2e_rec_ss6-resize $2 &
